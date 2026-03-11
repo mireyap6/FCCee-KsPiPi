@@ -71,13 +71,12 @@ class RDFanalysis():
                .Define("genPipm_vertex_z", "FCCAnalyses::MCParticle::get_vertex_z(genPipm)")
                .Define("genPipm_vertex_r", "sqrt(genPipm_vertex_x*genPipm_vertex_x + genPipm_vertex_y*genPipm_vertex_y)")
 
-               #get those pions that come from KS decays
-                .Define("genPipm_mother_indices", "FCCAnalyses::myUtils::get_MCMother1(Particle, genPipm_indices)")
-                .Define("genPipm_mother_pdg", "FCCAnalyses::MCParticle::get_pdg(Particle, genPipm_mother_indices)")
-                .Define("genPipm_fromKS_vertex_r", "genPipm_vertex_r[abs(genPipm_mother_pdg) == 310]")
-                .Define("genPipm_fromKS_vertex_z", "genPipm_vertex_z[abs(genPipm_mother_pdg) == 310]")
-                .Define("genPipm_fromKS_vertex_n", "int(genPipm_fromKS_vertex_r.size())")
-                .Define("genPipm_fromKS_p", "genPipm_p[abs(genPipm_mother_pdg) == 310]")
+               #get the generated pions that come from the decay of the kaon
+                .Define("KS_to_Pipm_indices_obj", "FCCAnalyses::MCParticle::get_indices(310, {211, -211}, true, true, true, false)")
+                .Define("genPipm_fromKS_indices", "KS_to_Pipm_indices_obj(Particle, genPipm_indices)")
+                .Define("n_genPipm_fromKS", "int(genPipm_fromKS_indices.size())")
+                .Define("genPipm_fromKS_p", "genPipm_p[genPipm_fromKS_indices]")
+                .Define("genPipm_fromKS_vertex_r", "genPipm_vertex_r[genPipm_fromKS_indices]")
 
                #get those pions with reconstructed tracks
                #I am commenting these lines since they are giving dimensional error when looking at MC_recotracks_indices and genPipm_indices)
@@ -153,7 +152,7 @@ class RDFanalysis():
                .Define("genKS_Vertex_r",   "sqrt(genKS_Vertex_x*genKS_Vertex_x + genKS_Vertex_y*genKS_Vertex_y)")
                .Define("genKS_Vertex_acceptance_r", "genKS_Vertex_r[(genKS_Vertex_r < 2000) && (abs(genKS_Vertex_z) < 2000)]")
                .Define("genKS_Vertex_acceptance_n", "int(genKS_Vertex_acceptance_r.size())")
-               .Define("genKS_Vertex_d",   "sqrt(genKS_Vertex_x*genKS_Vertex_x + genKS_Vertex_y*genKS_Vertex_y + genKS_Vertex_z*genKS_Vertex_z)")
+               .Define("genKS_Vertex_d", "sqrt(genKS_Vertex_x*genKS_Vertex_x + genKS_Vertex_y*genKS_Vertex_y + genKS_Vertex_z*genKS_Vertex_z)")
 
                #############################################
                ##              Build Reco Vertex          ##
@@ -166,19 +165,6 @@ class RDFanalysis():
                ####################################################
                .Define("RecoPartPID" ,"myUtils::PID(ReconstructedParticles, MCRecoAssociations0,MCRecoAssociations1,Particle)")
                .Define("RecoPartPIDAtVertex" ,"myUtils::get_RP_atVertex(RecoPartPID, VertexObject)")
-
-
-               #Get the reconstructed pions
-               .Define("reco_Pip_indices", "myUtils::sel_PID(211)(ReconstructedParticles)")
-               .Define("reco_Pim_indices", "myUtils::sel_PID(-211)(ReconstructedParticles)")
-               .Define("reco_Pipm_indices", "ROOT::VecOps::Concatenate(reco_Pip, reco_Pim)")
-               .Define("reco_Pipm_mcindex", "ReconstructedParticle2MC::getRP2MC_index(MCRecoAssociations0, MCRecoAssociations1, ReconstructedParticles)")
-               .Define("reco_Pipm_mc", "ROOT::VecOps::Take(reco_Pipm_mcindex, reco_Pipm_indices)")
-               .Define("reco_Pipm_mc_p", "ROOT::VecOps::Take(genPipm_p, reco_Pipm_mc)")
-               .Define("reco_Pipm_mc_r", "ROOT::VecOps::Take(genPipm_vertex_r, reco_Pipm_mc)")
-
-
-
 
                #############################################
                ##         Build vertex variables          ##
@@ -222,6 +208,28 @@ class RDFanalysis():
                     "return result;")
                .Define("genKS_tracks_r", "sqrt(genKS_tracks_x*genKS_tracks_x + genKS_tracks_y*genKS_tracks_y)")
                .Define("genKS_tracks_d", "sqrt(genKS_tracks_x*genKS_tracks_x + genKS_tracks_y*genKS_tracks_y + genKS_tracks_z*genKS_tracks_z)")
+
+
+               ######################################################################
+               ## MATCHING RECO PIpm TO MC PIpm
+               ######################################################################
+               #getRP2MC_index creates a vector that maps the reconstructed particles and the MC particles: RP_MC_index[ ireco ] = imc
+               .Define("RP_MC_index", "ReconstructedParticle2MC::getRP2MC_index(MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles)") 
+               #now I need the indices of the reco particles that are pions
+               .Define("Pip_reco_indices",  "myUtils::sel_PID(211)(ReconstructedParticles)")
+               .Define("Pim_reco_indices", "myUtils::sel_PID(-211)(ReconstructedParticles)")
+               .Define("Pipm_reco_indices", "ROOT::VecOps::Concatenate(Pip_reco_indices, Pim_reco_indices)")
+               #now I can get the indices of the MC particles that are matched to the reconstructed pions
+               .Define("Pipm_RP2MC_indices", "RP_MC_index[Pipm_reco_indices]")
+               #momentum and production position of all reconstructed pions
+                .Define("genPipm_RP2MC_p", "genPipm_p[Pipm_RP2MC_indices]")
+                .Define("genPipm_RP2MC_vertex_r", "genPipm_vertex_r[Pipm_RP2MC_indices]")
+                #Now I will select only those that come from a KS. I will do this at MC level, not reconstructed level... Maybe it's cheating.
+               .Define("genPipm_fromKSRP2MC_indices", "KS_to_Pipm_indices_obj(Particle, Pipm_RP2MC_indices)")
+                #now I will select the p and r of the reconstructed pions that come from KS
+               .Define("genPipm_fromKSRP2MC_p", "genPipm_p[genPipm_fromKSRP2MC_indices]")
+               .Define("genPipm_fromKSRP2MC_vertex_r", "genPipm_vertex_r[genPipm_fromKSRP2MC_indices]")
+
         
 
                ## these are the true x,y,z positions of the MC vertices matched to the reco vertices
@@ -279,7 +287,7 @@ class RDFanalysis():
 
         )
         return df2
-        )
+
 
 
 
