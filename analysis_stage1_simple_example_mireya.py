@@ -71,6 +71,14 @@ class RDFanalysis():
                .Define("genPipm_vertex_z", "FCCAnalyses::MCParticle::get_vertex_z(genPipm)")
                .Define("genPipm_vertex_r", "sqrt(genPipm_vertex_x*genPipm_vertex_x + genPipm_vertex_y*genPipm_vertex_y)")
 
+               #get those pions that come from KS decays
+                .Define("genPipm_mother_indices", "FCCAnalyses::myUtils::get_MCMother1(Particle, genPipm_indices)")
+                .Define("genPipm_mother_pdg", "FCCAnalyses::MCParticle::get_pdg(Particle, genPipm_mother_indices)")
+                .Define("genPipm_fromKS_vertex_r", "genPipm_vertex_r[abs(genPipm_mother_pdg) == 310]")
+                .Define("genPipm_fromKS_vertex_z", "genPipm_vertex_z[abs(genPipm_mother_pdg) == 310]")
+                .Define("genPipm_fromKS_vertex_n", "int(genPipm_fromKS_vertex_r.size())")
+                .Define("genPipm_fromKS_p", "genPipm_p[abs(genPipm_mother_pdg) == 310]")
+
                #get those pions with reconstructed tracks
                #I am commenting these lines since they are giving dimensional error when looking at MC_recotracks_indices and genPipm_indices)
                #.Define("MC_recotracks_indices", "FCCAnalyses::ZHfunctions::get_MCindTRK(ReconstructedParticles,EFlowTrack_1,MCRecoAssociations0,MCRecoAssociations1)")
@@ -158,6 +166,19 @@ class RDFanalysis():
                ####################################################
                .Define("RecoPartPID" ,"myUtils::PID(ReconstructedParticles, MCRecoAssociations0,MCRecoAssociations1,Particle)")
                .Define("RecoPartPIDAtVertex" ,"myUtils::get_RP_atVertex(RecoPartPID, VertexObject)")
+
+
+               #Get the reconstructed pions
+               .Define("reco_Pip_indices", "myUtils::sel_PID(211)(ReconstructedParticles)")
+               .Define("reco_Pim_indices", "myUtils::sel_PID(-211)(ReconstructedParticles)")
+               .Define("reco_Pipm_indices", "ROOT::VecOps::Concatenate(reco_Pip, reco_Pim)")
+               .Define("reco_Pipm_mcindex", "ReconstructedParticle2MC::getRP2MC_index(MCRecoAssociations0, MCRecoAssociations1, ReconstructedParticles)")
+               .Define("reco_Pipm_mc", "ROOT::VecOps::Take(reco_Pipm_mcindex, reco_Pipm_indices)")
+               .Define("reco_Pipm_mc_p", "ROOT::VecOps::Take(genPipm_p, reco_Pipm_mc)")
+               .Define("reco_Pipm_mc_r", "ROOT::VecOps::Take(genPipm_vertex_r, reco_Pipm_mc)")
+
+
+
 
                #############################################
                ##         Build vertex variables          ##
@@ -258,7 +279,7 @@ class RDFanalysis():
 
         )
         return df2
-
+        )
 
 
 
@@ -271,8 +292,7 @@ class RDFanalysis():
                  "genKS_energy", "genKpos_energy", "genKneg_energy",
 
                  "genPipm", "n_genPipms", "genPipm_p",
-                 "genPipm_vertex_x", "genPipm_vertex_y", "genPipm_vertex_z", "genPipm_vertex_r",  "genPipm_recotracks_r", "genPipm_recotracks_p", 
-                 "genPipm_KSrecotracks_r", "genPipm_KSrecotracks_p", "genPipm_KSrecotracks_n",
+                 "genPipm_vertex_x", "genPipm_vertex_y", "genPipm_vertex_z", "genPipm_vertex_r",
 
                  "genKS_Vertex_x", "genKS_Vertex_y", "genKS_Vertex_z", "genKS_Vertex_n", "genKS_Vertex_r", "genKS_Vertex_acceptance_r",
                  "genKS_Vertex_acceptance_n", "genKS_Vertex_d", "genKS_Vertex_p", "genKS_Vertex_pt",
