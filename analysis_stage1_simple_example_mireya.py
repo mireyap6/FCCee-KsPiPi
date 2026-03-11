@@ -61,7 +61,7 @@ class RDFanalysis():
 
                #pions
                .Define("genPipm",       "FCCAnalyses::MCParticle::sel_pdgID(211, true)(Particle)")
-               .Define("n_genPipms",    "FCCAnalyses::MCParticle::get_n(genPipm)")
+               .Define("genPipms_n",    "FCCAnalyses::MCParticle::get_n(genPipm)")
                .Define("genPipm_p", "FCCAnalyses::MCParticle::get_p(genPipm)")
                .Define("genPipm_indices", "ROOT::VecOps::RVec<int> idx; for (size_t i=0; i < Particle.size(); ++i){ if (abs(Particle[i].PDG)==211) idx.push_back(i); }return idx;")
 
@@ -72,11 +72,20 @@ class RDFanalysis():
                .Define("genPipm_vertex_r", "sqrt(genPipm_vertex_x*genPipm_vertex_x + genPipm_vertex_y*genPipm_vertex_y)")
 
                #get the generated pions that come from the decay of the kaon
-                .Define("KS_to_Pipm_indices_obj", "FCCAnalyses::MCParticle::get_indices(310, {211, -211}, true, true, true, false)")
-                .Define("genPipm_fromKS_indices", "KS_to_Pipm_indices_obj(Particle, genPipm_indices)")
-                .Define("n_genPipm_fromKS", "int(genPipm_fromKS_indices.size())")
-                .Define("genPipm_fromKS_p", "genPipm_p[genPipm_fromKS_indices]")
-                .Define("genPipm_fromKS_vertex_r", "genPipm_vertex_r[genPipm_fromKS_indices]")
+                #I do not know why this doesnt work so I will comment it :(
+                #.Define("KS_to_Pipm_indices_obj", "FCCAnalyses::MCParticle::get_indices(310, {211, -211}, true, false, false, false)")
+                #.Define("genPipm_fromKS_indices", "KS_to_Pipm_indices_obj(Particle, genPipm_indices)")
+                #.Define("n_genPipm_fromKS", "int(genPipm_fromKS_indices.size())")
+                #.Define("genPipm_fromKS_p", "genPipm_p[genPipm_fromKS_indices]")
+                #.Define("genPipm_fromKS_vertex_r", "genPipm_vertex_r[genPipm_fromKS_indices]")
+                #Trying a different approach to get the pions from KS decays.
+                .Define("parents_Pipm_indices", "FCCAnalyses::MCParticle::get_parentid(genPipm_indices, Particle, Particle0)")
+                .Define("pdg_allmc", "FCCAnalyses::McParticle::get_pdg(Particle)")
+                .Define("parents_KS_Pipm_indices", "ROOT::VecOps::RVec<int> result; for (int idx : parents_Pipm_indices) { if (pdg_allmc[idx] == 310) result.push_back(idx); } return result;")
+
+                .Define("genPipm_fromKS_indices", "ROOT::VecOps::RVec<int> result; for (int idx : parents_KS_Pipm_indices) {auto daughters = FCCAnalyses::MCParticle::get_list_of_particles_from_decay(idx, Particle, Particle1); for (int v : daughters) { result.push_back(v); } } return result;")
+                .Define("genPipm_fromKS_vertex_r", "genPipm_vertex_r[gen_Pipm_fromKS_indices]")
+                .Define("genPipm_fromKS_vertex_p", "genPipm_p[gen_Pipm_fromKS_indices]")
 
                #get those pions with reconstructed tracks
                #I am commenting these lines since they are giving dimensional error when looking at MC_recotracks_indices and genPipm_indices)
@@ -225,11 +234,21 @@ class RDFanalysis():
                 .Define("genPipm_RP2MC_p", "genPipm_p[Pipm_RP2MC_indices]")
                 .Define("genPipm_RP2MC_vertex_r", "genPipm_vertex_r[Pipm_RP2MC_indices]")
                 #Now I will select only those that come from a KS. I will do this at MC level, not reconstructed level... Maybe it's cheating.
-               .Define("genPipm_fromKSRP2MC_indices", "KS_to_Pipm_indices_obj(Particle, Pipm_RP2MC_indices)")
+               #.Define("genPipm_fromKSRP2MC_indices", "KS_to_Pipm_indices_obj(Particle, Pipm_RP2MC_indices)")
                 #now I will select the p and r of the reconstructed pions that come from KS
-               .Define("genPipm_fromKSRP2MC_p", "genPipm_p[genPipm_fromKSRP2MC_indices]")
-               .Define("genPipm_fromKSRP2MC_vertex_r", "genPipm_vertex_r[genPipm_fromKSRP2MC_indices]")
+               #.Define("genPipm_fromKSRP2MC_p", "genPipm_p[genPipm_fromKSRP2MC_indices]")
+               #.Define("genPipm_fromKSRP2MC_vertex_r", "genPipm_vertex_r[genPipm_fromKSRP2MC_indices]")
+                 #different approach (same as above)
+                #already done: .Define("pdg_allmc", "FCCAnalyses::McParticle::get_pdg(Particle)")
+                .Define("parents_recoPipm_indices", "FCCAnalyses::MCParticle::get_parentid(genPipm_RP2MC_vertex_r, Particle, Particle0)")
+                .Define("parents_recoPipmfromKS_indices", "ROOT::VecOps::RVec<int> result; for (int idx : parents_recoPipm_indices) { "
+                        "if (pdg_allmc[idx] == 310) result.push_back(idx); } return result;")
 
+                .Define("genPipm_recofromKS_indices", "ROOT::VecOps::RVec<int> result; for (int idx : parents_recoPipmfromKS_indices) { 
+                        "auto daughters = FCCAnalyses::MCParticle::get_list_of_particles_from_decay(idx, Particle, Particle1); "
+                        "for (int v : daughters) { result.push_back(v); } } return result;")
+                .Define("genPipm_recofromKS_vertex_r", "genPipm_vertex_r[gen_Pipm_fromKS_indices]")
+                .Define("genPipm_fromKS_vertex_p", "genPipm_p[gen_Pipm_fromKS_indices]")
         
 
                ## these are the true x,y,z positions of the MC vertices matched to the reco vertices
@@ -285,9 +304,8 @@ class RDFanalysis():
                .Define("genKS_recoVertex_r", "sqrt(genKS_recoVertex_x*genKS_recoVertex_x + genKS_recoVertex_y*genKS_recoVertex_y)")
                .Define("genKS_recoVertex_d", "sqrt(genKS_recoVertex_x*genKS_recoVertex_x + genKS_recoVertex_y*genKS_recoVertex_y + genKS_recoVertex_z*genKS_recoVertex_z)")
 
-        )
-        return df2
-
+                
+        return df2)
 
 
 
