@@ -372,6 +372,28 @@ ROOT::VecOps::RVec<int> get_MCindTRK(ROOT::VecOps::RVec<edm4hep::ReconstructedPa
     }
     return result;
 }
+
+struct sel_indices {
+  sel_indices() {};
+
+  ROOT::VecOps::RVec<edm4hep::MCParticleData>
+  operator()(ROOT::VecOps::RVec<edm4hep::MCParticleData> in,
+             ROOT::VecOps::RVec<int> indices) {
+
+    ROOT::VecOps::RVec<edm4hep::MCParticleData> result;
+    result.reserve(indices.size());
+
+    for (auto idx : indices) {
+      if (idx >= 0 && idx < (int)in.size()) {
+        result.emplace_back(in[idx]);
+      }
+    }
+
+    return result;
+  }
+};
+
 }}
 
 #endif
+
