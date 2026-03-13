@@ -334,6 +334,35 @@ ROOT::VecOps::RVec<float> get_MC_Vertex_pt(ROOT::VecOps::RVec<VertexingUtils::FC
   return result;
 }
 
+ROOT::VecOps::RVec<float> get_MC_Vertex_eta(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertexMC> vertex,
+                                            ROOT::VecOps::RVec<edm4hep::MCParticleData> mc){
+  ROOT::VecOps::RVec<float> result;
+  for (auto &p : vertex){
+    TLorentzVector tlv;
+
+    for (size_t i = 0; i < p.mc_ind.size(); ++i){
+        TLorentzVector tmp_tlv;
+        auto& part = mc.at(p.mc_ind.at(i));
+        tmp_tlv.SetXYZM(part.momentum.x, part.momentum.y, part.momentum.z, part.mass);
+        tlv += tmp_tlv;
+    }
+
+    for (size_t i = 0; i < p.mc_indneutral.size(); ++i) {
+        TLorentzVector tmp_tlv;
+        auto& part = mc.at(p.mc_indneutral.at(i));
+        tmp_tlv.SetXYZM(part.momentum.x, part.momentum.y, part.momentum.z, part.mass);
+        tlv += tmp_tlv;
+    }
+    
+    if (tlv.P() > 0) {
+        result.push_back(tlv.Eta());
+    } else {
+        result.push_back(-999.0);
+    }
+  }
+  return result;
+}
+
 
 ROOT::VecOps::RVec<float> get_Vertex_pt(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vertex,
                                                    ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco){
