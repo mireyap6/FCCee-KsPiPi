@@ -63,6 +63,8 @@ class RDFanalysis():
                .Define("genPipm",       "FCCAnalyses::MCParticle::sel_pdgID(211, true)(Particle)")
                .Define("genPipms_n",    "FCCAnalyses::MCParticle::get_n(genPipm)")
                .Define("genPipm_p", "FCCAnalyses::MCParticle::get_p(genPipm)")
+               .Define("genPipm_eta", "FCCAnalyses::MCParticle::get_eta(genPipm)")
+               #.Define("genPipm_p_etacut", "genPipm_p[abs(genPipm_eta) < 2.5]")
                .Define("genPipm_indices", "ROOT::VecOps::RVec<int> idx; for (size_t i=0; i < Particle.size(); ++i){ if (abs(Particle[i].PDG)==211) idx.push_back(i); } return idx;")
 
                #get the position of the pions at the decay vertex
@@ -70,6 +72,9 @@ class RDFanalysis():
                .Define("genPipm_vertex_y", "FCCAnalyses::MCParticle::get_vertex_y(genPipm)")
                .Define("genPipm_vertex_z", "FCCAnalyses::MCParticle::get_vertex_z(genPipm)")
                .Define("genPipm_vertex_r", "sqrt(genPipm_vertex_x*genPipm_vertex_x + genPipm_vertex_y*genPipm_vertex_y)")
+               .Define("genPipm_vertex_r_etacut", "genPipm_vertex_r[abs(genPipm_eta) < 2.5]")
+               .Define("genPipm_p_etacut", "genPipm_p[abs(genPipm_eta) < 2.5]")
+               .Define("genPipm_p_etacut_prompt", "genPipm_p[abs(genPipm_eta) < 2.5 && genPipm_vertex_r < 0.001]") #prompt pions (r<0.001 mm)
 
                #get the generated pions that come from the decay of the kaon
                 #I do not know why this doesnt work so I will comment it :(
@@ -84,7 +89,9 @@ class RDFanalysis():
                 .Define("genPipm_fromKS_vertex_y", "FCCAnalyses::MCParticle::get_vertex_y(genPipm_fromKS)")
                 .Define("genPipm_fromKS_vertex_z", "FCCAnalyses::MCParticle::get_vertex_z(genPipm_fromKS)")
                 .Define("genPipm_fromKS_vertex_r", "sqrt(genPipm_fromKS_vertex_x*genPipm_fromKS_vertex_x + genPipm_fromKS_vertex_y*genPipm_fromKS_vertex_y)")
-
+                .Define("genPipm_fromKS_eta", "FCCAnalyses::MCParticle::get_eta(genPipm_fromKS)")
+                .Define("genPipm_fromKS_p_etacut", "genPipm_fromKS_p[abs(genPipm_fromKS_eta) < 2.5]")
+                .Define("genPipm_fromKS_vertex_r_etacut", "genPipm_fromKS_vertex_r[abs(genPipm_fromKS_eta) < 2.5]")
                ## energy of kaons
                .Define("genKS_energy",     "FCCAnalyses::MCParticle::get_e(genKS)")
                .Define("genKpos_energy",   "FCCAnalyses::MCParticle::get_e(genKpos)")
@@ -109,6 +116,7 @@ class RDFanalysis():
                .Define("MC_Vertex_mass",  "FCCAnalyses::ZHfunctions::get_MC_Vertex_mass(MCVertexObject, Particle)")
                .Define("MC_Vertex_p",     "FCCAnalyses::ZHfunctions::get_MC_Vertex_p(MCVertexObject, Particle)")
                .Define("MC_Vertex_pt",    "FCCAnalyses::ZHfunctions::get_MC_Vertex_pt(MCVertexObject, Particle)")
+               .Define("MC_Vertex_eta", "FCCAnalyses::ZHfunctions::get_MC_Vertex_eta(MCVertexObject, Particle)")
 
 
                 ########################################################
@@ -121,17 +129,20 @@ class RDFanalysis():
                 ##  plot2_decay.py will use the following branches    ##
                 ########################################################
 
+                #theta = arccos(pz/p)
+                #eta = -log(tan(theta/2))
+
 
                #This was wrong: .Define("MC_Vertex_isKSpipi",   "ROOT::VecOps::RVec<int> result; for (size_t i=0; i < MC_Vertex_PDGmother.size(); ++i) {int isKS=0; for (size_t j=0; j < MC_Vertex_PDGmother[i].size(); ++j) {if (abs(MC_Vertex_PDGmother[i][j])==310) isKS+=10;} for (size_t j=0; j < MC_Vertex_PDG[i].size(); ++j) {if (abs(MC_Vertex_PDG[i][j])==211) isKS+=1;} result.push_back(isKS);} return result;")
                .Define("MC_Vertex_isKSpipi", "ROOT::VecOps::RVec<int> result; for (size_t i=0; i < MC_Vertex_PDGmother.size(); ++i) {int isKS=0; for (size_t j=0; j < MC_Vertex_PDGmother[i].size(); ++j) {if (abs(MC_Vertex_PDGmother[i][j])==310) {isKS+=10; for (size_t k=0; k < MC_Vertex_PDG[i].size(); ++k) {if (abs(MC_Vertex_PDG[i][k])==211) isKS+=1;} break;}} result.push_back(isKS);} return result;")
 
                .Define("MC_Vertex_KSflag", "1.0*(MC_Vertex_isKSpipi > 10 && MC_Vertex_isKSpipi % 10 !=0)")
-               .Define("genKS_Vertex_x",   "MC_Vertex_x[MC_Vertex_KSflag>0]") #find Ks meson
-               .Define("genKS_Vertex_y",   "MC_Vertex_y[MC_Vertex_KSflag>0]") #no implementation of abs() for vector
-               .Define("genKS_Vertex_z",   "MC_Vertex_z[MC_Vertex_KSflag>0]")
+               .Define("genKS_Vertex_x",   "MC_Vertex_x[MC_Vertex_KSflag>0 && abs(MC_Vertex_eta)<2.5]") #find Ks meson
+               .Define("genKS_Vertex_y",   "MC_Vertex_y[MC_Vertex_KSflag>0 && abs(MC_Vertex_eta)<2.5]") #no implementation of abs() for vector
+               .Define("genKS_Vertex_z",   "MC_Vertex_z[MC_Vertex_KSflag>0 && abs(MC_Vertex_eta)<2.5]")
                .Define("genKS_Vertex_n", "int(genKS_Vertex_x.size())")
-               .Define("genKS_Vertex_p",   "MC_Vertex_p[MC_Vertex_KSflag>0]")
-               .Define("genKS_Vertex_pt",  "MC_Vertex_pt[MC_Vertex_KSflag>0]")
+               .Define("genKS_Vertex_p",   "MC_Vertex_p[MC_Vertex_KSflag>0 && abs(MC_Vertex_eta)<2.5]")
+               .Define("genKS_Vertex_pt",  "MC_Vertex_pt[MC_Vertex_KSflag>0 && abs(MC_Vertex_eta)<2.5]")
                .Define("genKS_Vertex_r",   "sqrt(genKS_Vertex_x*genKS_Vertex_x + genKS_Vertex_y*genKS_Vertex_y)")
                .Define("genKS_Vertex_acceptance_r", "genKS_Vertex_r[(genKS_Vertex_r < 2000) && (abs(genKS_Vertex_z) < 2000)]")
                .Define("genKS_Vertex_acceptance_n", "int(genKS_Vertex_acceptance_r.size())")
@@ -187,10 +198,14 @@ class RDFanalysis():
                 .Define("genKS_tracks_z",
                     "ROOT::VecOps::RVec<float> result;" "for (auto i : genKS_tracks_indices) result.push_back(MC_Vertex_z[i]);"
                     "return result;")
-               .Define("MC_tracks_p", "ROOT::VecOps::RVec<float> result; for (auto i : genKS_tracks_indices) result.push_back(MC_Vertex_p[i]);"
+               .Define("genKS_tracks_p", "ROOT::VecOps::RVec<float> result; for (auto i : genKS_tracks_indices) result.push_back(MC_Vertex_p[i]);"
+                    "return result;")
+                .Define("genKS_tracks_eta", "ROOT::VecOps::RVec<float> result; for (auto i : genKS_tracks_indices) result.push_back(MC_Vertex_eta[i]);"
                     "return result;")
                .Define("genKS_tracks_r", "sqrt(genKS_tracks_x*genKS_tracks_x + genKS_tracks_y*genKS_tracks_y)")
                .Define("genKS_tracks_d", "sqrt(genKS_tracks_x*genKS_tracks_x + genKS_tracks_y*genKS_tracks_y + genKS_tracks_z*genKS_tracks_z)")
+               .Define("genKS_tracks_r_etacut", "genKS_tracks_r[abs(genKS_tracks_eta)<2.5]")
+               .Define("genKS_tracks_p_etacut", "genKS_tracks_p[abs(genKS_tracks_eta)<2.5]")
 
 
                ######################################################################
@@ -205,7 +220,9 @@ class RDFanalysis():
                 .Define("Pipm_recoMC_vertex_x", "FCCAnalyses::MCParticle::get_vertex_x(Pipm_MC_reco)")
                 .Define("Pipm_recoMC_vertex_y", "FCCAnalyses::MCParticle::get_vertex_y(Pipm_MC_reco)")
                 .Define("Pipm_recoMC_vertex_z", "FCCAnalyses::MCParticle::get_vertex_z(Pipm_MC_reco)")
+                .Define("Pipm_recoMC_eta", "FCCAnalyses::MCParticle::get_eta(Pipm_MC_reco)")
                 .Define("Pipm_recoMC_vertex_r", "sqrt(Pipm_recoMC_vertex_x*Pipm_recoMC_vertex_x+Pipm_recoMC_vertex_y*Pipm_recoMC_vertex_y)")
+                .Define("Pipm_recoMC_p_etacut_prompt", "Pipm_recoMC_p[abs(Pipm_recoMC_eta) < 2.5 && Pipm_recoMC_vertex_r < 0.001]")
 
 
                 #get the mc reconstructed pions that come from KS. Exact same code as above for generated but now for reconstructed
@@ -214,11 +231,14 @@ class RDFanalysis():
                 .Define("recoPipm_fromKS_indices", "ROOT::VecOps::RVec<int> res; for (int i : parents_recoPipm_indices) { if (i < 0) continue; auto decay = FCCAnalyses::MCParticle::get_indices_MotherByIndex(i, {211, -211}, false, true, false, Particle, Particle1); if (decay.size() > 1) { for (size_t j = 1; j < decay.size(); ++j) { if (std::find(res.begin(), res.end(), decay[j]) == res.end()) res.push_back(decay[j]); } } } return res;")
                 .Define("recoPipm_fromKS", "FCCAnalyses::ZHfunctions::sel_indices()(Particle, recoPipm_fromKS_indices)") 
                 .Define("recoPipm_fromKS_p", "FCCAnalyses::MCParticle::get_p(recoPipm_fromKS)")
+                .Define("recoPipm_fromKS_eta", "FCCAnalyses::MCParticle::get_eta(recoPipm_fromKS)")
                 .Define("recoPipm_fromKS_n", "int(recoPipm_fromKS_p.size())")
+                .Define("recoPipm_fromKS_p_etacut", "recoPipm_fromKS_p[abs(recoPipm_fromKS_eta) < 2.5]")
                 .Define("recoPipm_fromKS_vertex_x", "FCCAnalyses::MCParticle::get_vertex_x(recoPipm_fromKS)")
                 .Define("recoPipm_fromKS_vertex_y", "FCCAnalyses::MCParticle::get_vertex_y(recoPipm_fromKS)")
                 .Define("recoPipm_fromKS_vertex_z", "FCCAnalyses::MCParticle::get_vertex_z(recoPipm_fromKS)")
                 .Define("recoPipm_fromKS_vertex_r", "sqrt(recoPipm_fromKS_vertex_x*recoPipm_fromKS_vertex_x + recoPipm_fromKS_vertex_y*recoPipm_fromKS_vertex_y)")
+                .Define("recoPipm_fromKS_vertex_r_etacut", "recoPipm_fromKS_vertex_r[abs(recoPipm_fromKS_eta) < 2.5]")
                
                ###############################################
                ###############################################
@@ -228,6 +248,7 @@ class RDFanalysis():
                .Define("Vertex_MCy",      "ROOT::VecOps::RVec<float> result; for (size_t i=0; i < Vertex_mcind.size(); ++i) result.push_back(MC_Vertex_y.at(Vertex_mcind[i])); return result;")
                .Define("Vertex_MCz",      "ROOT::VecOps::RVec<float> result; for (size_t i=0; i < Vertex_mcind.size(); ++i) result.push_back(MC_Vertex_z.at(Vertex_mcind[i])); return result;")
                .Define("Vertex_MCp",      "ROOT::VecOps::RVec<float> result; for (size_t i=0; i < Vertex_mcind.size(); ++i) result.push_back(MC_Vertex_p.at(Vertex_mcind[i])); return result;")
+               .Define("Vertex_MCeta",      "ROOT::VecOps::RVec<float> result; for (size_t i=0; i < Vertex_mcind.size(); ++i) result.push_back(MC_Vertex_eta.at(Vertex_mcind[i])); return result;")
                .Define("Vertex_MCd",      "sqrt( (Vertex_MCx-Vertex_x)*(Vertex_MCx-Vertex_x) + (Vertex_MCy-Vertex_y)*(Vertex_MCy-Vertex_y) + (Vertex_MCz-Vertex_z)*(Vertex_MCz-Vertex_z)   )")
                .Define("Vertex_isMCKSpipi", "ROOT::VecOps::RVec<int> res; for (size_t i=0; i < Vertex_mcind.size(); ++i) { int isKS=0, idx=Vertex_mcind[i]; if (idx>=0) { for (size_t j=0; j < MC_Vertex_PDGmother[idx].size(); ++j) { if (abs(MC_Vertex_PDGmother[idx][j])==310) { isKS+=10; for (size_t k=0; k < MC_Vertex_PDG[idx].size(); ++k) { if (abs(MC_Vertex_PDG[idx][k])==211) isKS+=1; } break; } } } res.push_back(isKS); } return res;")
               # This was wrong:.Define("Vertex_isMCKSpipi",   "ROOT::VecOps::RVec<int> result; for (size_t i=0; i < Vertex_mcind.size(); ++i) {int isKS=0; for (size_t j=0; j < MC_Vertex_PDGmother[Vertex_mcind[i]].size(); ++j) {if (abs(MC_Vertex_PDGmother[i][j])==310) isKS+=10;} for (size_t l=0; l < MC_Vertex_PDG[Vertex_mcind[i]].size(); ++l) {if (abs(MC_Vertex_PDG[i][l])==211) isKS+=1;} result.push_back(isKS);} return result;")
@@ -273,8 +294,13 @@ class RDFanalysis():
                .Define("genKS_recoVertex_p", "ROOT::VecOps::RVec<float> result;"
                         "for (size_t i=0; i < Vertex_MCp.size(); ++i) {if (Vertex_KSmatch[i] == 1) result.push_back(Vertex_MCp[i]); }"
                         "return result;")
-               .Define("genKS_recoVertex_r", "sqrt(genKS_recoVertex_x*genKS_recoVertex_x + genKS_recoVertex_y*genKS_recoVertex_y)")
-               .Define("genKS_recoVertex_d", "sqrt(genKS_recoVertex_x*genKS_recoVertex_x + genKS_recoVertex_y*genKS_recoVertex_y + genKS_recoVertex_z*genKS_recoVertex_z)")
+                .Define("genKS_recoVertex_eta", "ROOT::VecOps::RVec<float> result;"
+                        "for (size_t i=0; i < Vertex_MCeta.size(); ++i) {if (Vertex_KSmatch[i] == 1) result.push_back(Vertex_MCeta[i]); }"
+                        "return result;")
+                .Define("genKS_recoVertex_p_etacut", "genKS_recoVertex_p[abs(genKS_recoVertex_eta) < 2.5]")
+                .Define("genKS_recoVertex_r", "sqrt(genKS_recoVertex_x*genKS_recoVertex_x + genKS_recoVertex_y*genKS_recoVertex_y)")
+                .Define("genKS_recoVertex_r_etacut", "genKS_recoVertex_r[abs(genKS_recoVertex_eta) < 2.5]")
+                .Define("genKS_recoVertex_d", "sqrt(genKS_recoVertex_x*genKS_recoVertex_x + genKS_recoVertex_y*genKS_recoVertex_y + genKS_recoVertex_z*genKS_recoVertex_z)")
 
         )
         return df2
@@ -289,8 +315,10 @@ class RDFanalysis():
 
                  "genPipm", "genPipms_n", "genPipm_p",
                  "genPipm_vertex_x", "genPipm_vertex_y", "genPipm_vertex_z", "genPipm_vertex_r",
+                 "genPipm_p_etacut", "genPipm_vertex_r_etacut", "genPipm_p_etacut_prompt",
 
                   "genPipm_fromKS_p", "genPipm_fromKS_n", "genPipm_fromKS_vertex_r",
+                  "genPipm_fromKS_p_etacut", "genPipm_fromKS_vertex_r_etacut", 
 
                  "genKS_Vertex_x", "genKS_Vertex_y", "genKS_Vertex_z", "genKS_Vertex_n", "genKS_Vertex_r", "genKS_Vertex_acceptance_r",
                  "genKS_Vertex_acceptance_n", "genKS_Vertex_d", "genKS_Vertex_p", "genKS_Vertex_pt",
@@ -302,12 +330,13 @@ class RDFanalysis():
                  "Vertex_n",
                  "Vertex_mass_before_VerDet", "Vertex_mass_within_VerDet", "Vertex_mass_within_DC", "Vertex_mass_super_displaced",
                  "Vertex_pt", "Vertex_eta",
-                 "genKS_tracks_indices", "genKS_tracks_x", "genKS_tracks_y", "genKS_tracks_z", "MC_tracks_p","genKS_tracks_r", "genKS_tracks_d", 
-                 "genKS_tracks_n",
+                 "genKS_tracks_indices", "genKS_tracks_x", "genKS_tracks_y", "genKS_tracks_z", "genKS_tracks_p","genKS_tracks_r", "genKS_tracks_d", 
+                 "genKS_tracks_n", "genKS_tracks_r_etacut", "genKS_tracks_p_etacut",
 
 
-                 "Pipm_recoMC_p", "Pipm_recoMC_n", "Pipm_recoMC_vertex_r",
+                 "Pipm_recoMC_p", "Pipm_recoMC_n", "Pipm_recoMC_vertex_r", "Pipm_recoMC_p_etacut_prompt",
                  "recoPipm_fromKS_vertex_r", "recoPipm_fromKS_p", "recoPipm_fromKS_n",
+                 "recoPipm_fromKS_vertex_r_etacut", "recoPipm_fromKS_p_etacut",
 
 
                  "Vertex_MCx", "Vertex_MCy", "Vertex_MCz",
@@ -316,6 +345,6 @@ class RDFanalysis():
                  "recoKS_Vertex_mass_before_VerDet", "recoKS_Vertex_mass_within_VerDet", "recoKS_Vertex_mass_beyond_VerDet", 
                  
                  "genKS_recoVertex_n", "genKS_recoVertex_x", "genKS_recoVertex_y", "genKS_recoVertex_z", "genKS_recoVertex_p","genKS_recoVertex_r", 
-                 "genKS_recoVertex_d"
+                 "genKS_recoVertex_d", "genKS_recoVertex_p_etacut", "genKS_recoVertex_r_etacut"
                 ]
         return branchList
