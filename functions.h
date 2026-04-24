@@ -363,6 +363,35 @@ ROOT::VecOps::RVec<float> get_MC_Vertex_eta(ROOT::VecOps::RVec<VertexingUtils::F
   return result;
 }
 
+ROOT::VecOps::RVec<float> get_MC_Vertex_phi(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertexMC> vertex,
+                                            ROOT::VecOps::RVec<edm4hep::MCParticleData> mc) {
+  ROOT::VecOps::RVec<float> result;
+  for (auto &p : vertex) {
+    TLorentzVector tlv;
+
+    for (size_t i = 0; i < p.mc_ind.size(); ++i) {
+        TLorentzVector tmp_tlv;
+        auto& part = mc.at(p.mc_ind.at(i));
+        tmp_tlv.SetXYZM(part.momentum.x, part.momentum.y, part.momentum.z, part.mass);
+        tlv += tmp_tlv;
+    }
+
+    for (size_t i = 0; i < p.mc_indneutral.size(); ++i) {
+        TLorentzVector tmp_tlv;
+        auto& part = mc.at(p.mc_indneutral.at(i));
+        tmp_tlv.SetXYZM(part.momentum.x, part.momentum.y, part.momentum.z, part.mass);
+        tlv += tmp_tlv;
+    }
+    
+    if (tlv.Pt() > 0) {
+        result.push_back(tlv.Phi());
+    } else {
+        result.push_back(-999.0);
+    }
+  }
+  return result;
+};
+
 
 ROOT::VecOps::RVec<float> get_Vertex_pt(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vertex,
                                                    ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco){
@@ -386,6 +415,167 @@ ROOT::VecOps::RVec<float> get_Vertex_eta(ROOT::VecOps::RVec<VertexingUtils::FCCA
     result.push_back(tmp_tlv.Eta());
   }
   return result;
+}
+
+ROOT::VecOps::RVec<float> get_Vertex_phi(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vertex,
+                                         ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco) {
+  ROOT::VecOps::RVec<float> result;
+  for (auto &p : vertex) {
+    ROOT::VecOps::RVec<int> reco_ind = p.reco_ind;
+    TLorentzVector tmp_tlv = myUtils::build_tlv(reco, reco_ind);
+    
+    if (tmp_tlv.Pt() > 0) {
+        result.push_back(tmp_tlv.Phi());
+    } else {
+        result.push_back(-999.0);
+    }
+  }
+  return result;
+};
+
+ROOT::VecOps::RVec<float> get_Vertex_p(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vertex,
+                                       ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco) {
+  ROOT::VecOps::RVec<float> result;
+  for (auto &p : vertex) {
+    ROOT::VecOps::RVec<int> reco_ind = p.reco_ind;
+    TLorentzVector tmp_tlv = myUtils::build_tlv(reco, reco_ind);
+    result.push_back(tmp_tlv.P());
+  }
+  return result;
+};
+
+ROOT::VecOps::RVec<float> get_Vertex_px(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vertex,
+                                       ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco) {
+  ROOT::VecOps::RVec<float> result;
+  for (auto &p : vertex) {
+    ROOT::VecOps::RVec<int> reco_ind = p.reco_ind;
+    TLorentzVector tmp_tlv = myUtils::build_tlv(reco, reco_ind);
+    result.push_back(tmp_tlv.Px());
+  }
+  return result;
+};
+
+ROOT::VecOps::RVec<float> get_Vertex_py(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vertex,
+                                        ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco) {
+  ROOT::VecOps::RVec<float> result;
+  for (auto &p : vertex) {
+    ROOT::VecOps::RVec<int> reco_ind = p.reco_ind;
+    TLorentzVector tmp_tlv = myUtils::build_tlv(reco, reco_ind);
+    result.push_back(tmp_tlv.Py());
+  }
+  return result;
+};
+
+ROOT::VecOps::RVec<float> get_Vertex_pz(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vertex,
+                                        ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco) {
+  ROOT::VecOps::RVec<float> result;
+  for (auto &p : vertex) {
+    ROOT::VecOps::RVec<int> reco_ind = p.reco_ind;
+    TLorentzVector tmp_tlv = myUtils::build_tlv(reco, reco_ind);
+    result.push_back(tmp_tlv.Pz());
+  }
+  return result;
+};
+
+ROOT::VecOps::RVec<float> get_MC_KS_mass_mumu(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertexMC> vertex,
+                                              ROOT::VecOps::RVec<edm4hep::MCParticleData> mc) {
+  ROOT::VecOps::RVec<float> result;
+  double m_mu = 0.105658; 
+
+  for (auto &p : vertex) {
+    TLorentzVector tlv;
+    
+    // For charged particles
+    for (size_t i = 0; i < p.mc_ind.size(); ++i) {
+      TLorentzVector tmp_tlv;
+      auto& part = mc.at(p.mc_ind.at(i));
+      double p2 = part.momentum.x * part.momentum.x + part.momentum.y * part.momentum.y + part.momentum.z * part.momentum.z;
+      //Muon mass hypothesis: E = sqrt(p^2 + m_mu^2)
+      tmp_tlv.SetXYZM(part.momentum.x, part.momentum.y, part.momentum.z, m_mu);
+      tlv += tmp_tlv;
+    }
+    
+    // For neutral particles
+    for (size_t i = 0; i < p.mc_indneutral.size(); ++i) {
+      TLorentzVector tmp_tlv;
+      auto& part = mc.at(p.mc_indneutral.at(i));
+      tmp_tlv.SetXYZM(part.momentum.x, part.momentum.y, part.momentum.z, m_mu);
+      tlv += tmp_tlv;
+    }
+    
+    result.push_back(tlv.M());
+  }
+  return result;
+}
+
+ROOT::VecOps::RVec<float> get_MC_KS_mass_mumu_smeared(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertexMC> vertex,
+                                                     ROOT::VecOps::RVec<edm4hep::MCParticleData> mc) {
+  ROOT::VecOps::RVec<float> result;
+  double m_mu = 0.105658; 
+  double resolution = 0.001; // 0.1% resolución
+
+  // random number
+  static TRandom3 gen(42); 
+
+  for (auto &p : vertex) {
+    TLorentzVector tlv;
+    
+    // 1. charged particles
+    for (size_t i = 0; i < p.mc_ind.size(); ++i) {
+      TLorentzVector tmp_tlv;
+      auto& part = mc.at(p.mc_ind.at(i));
+      
+      double smearFactor = gen.Gaus(1.0, resolution);
+      
+      // apply smearing to momentum components
+      tmp_tlv.SetXYZM(part.momentum.x * smearFactor, 
+                      part.momentum.y * smearFactor, 
+                      part.momentum.z * smearFactor, 
+                      m_mu);
+      tlv += tmp_tlv;
+    }
+    
+    // 2. neutral particles
+    for (size_t i = 0; i < p.mc_indneutral.size(); ++i) {
+      TLorentzVector tmp_tlv;
+      auto& part = mc.at(p.mc_indneutral.at(i));
+      
+      double smearFactor = gen.Gaus(1.0, resolution);
+      
+      tmp_tlv.SetXYZM(part.momentum.x * smearFactor, 
+                      part.momentum.y * smearFactor, 
+                      part.momentum.z * smearFactor, 
+                      m_mu);
+      tlv += tmp_tlv;
+    }
+    
+    // reconstructed mass
+    result.push_back(tlv.M());
+  }
+  return result;
+}
+
+ROOT::VecOps::RVec<float> get_KS_mass_mumu(ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vertices) {
+    ROOT::VecOps::RVec<float> result;
+    double m_mu = 0.105658; // muon mass
+
+    for (auto &vertex : vertices) {
+        // get momenta updated at the vertex point
+        ROOT::VecOps::RVec<TVector3> p_tracks = vertex.updated_track_momentum_at_vertex;
+        
+        TLorentzVector k_short_tlv(0, 0, 0, 0);
+
+        // loop over tracks associated to the vertex and build the K_S candidate 4-momentum using the muon mass hypothesis
+        for (size_t i = 0; i < p_tracks.size(); ++i) {
+            TLorentzVector muon_tlv;
+            muon_tlv.SetXYZM(p_tracks[i].X(), p_tracks[i].Y(), p_tracks[i].Z(), m_mu);
+            k_short_tlv += muon_tlv;
+        }
+
+        // store the invariant mass of the K_S candidate
+        result.push_back(k_short_tlv.M());
+    }
+    return result;
 }
 
 ///// I am adding a function to get the indices of the MC particles associated to particles with reconstructed tracks.
@@ -421,6 +611,361 @@ struct sel_indices {
     return result;
   }
 };
+
+ROOT::VecOps::RVec<int> get_Vertex_isMCKSpipi(
+    ROOT::VecOps::RVec<int> Vertex_mcind,
+    const std::vector<std::vector<int>>& PDGmother,  // These are the names of the inputs
+    const std::vector<std::vector<int>>& PDG) 
+{
+    ROOT::VecOps::RVec<int> result;
+
+    for (size_t i = 0; i < Vertex_mcind.size(); ++i) {
+        int isKS = 0;
+        int mc_index = Vertex_mcind[i];
+
+        // 1. Check if vertex has the MC association
+        if (mc_index >= 0 && mc_index < (int)PDGmother.size()) {
+            
+            bool hasKSMother = false;
+            // 2. Check if the mother is a KS
+            for (size_t j = 0; j < PDGmother[mc_index].size(); ++j) {
+                if (std::abs(PDGmother[mc_index][j]) == 310) {
+                    hasKSMother = true;
+                    isKS = 10; 
+                    break;
+                }
+            }
+
+            // 3. Count the daughter pions if the KS mother is found
+            if (hasKSMother) {
+                for (size_t l = 0; l < PDG[mc_index].size(); ++l) {
+                    if (std::abs(PDG[mc_index][l]) == 211) {
+                        isKS += 1;
+                    }
+                }
+            }
+        } else {
+            isKS = -1; 
+        }
+        
+        result.push_back(isKS);
+    }
+    return result;
+};
+
+ROOT::VecOps::RVec<int> get_MC_Vertex_isKSpipi(
+    const std::vector<std::vector<int>>& PDGmother, 
+    const std::vector<std::vector<int>>& PDG)
+{
+    ROOT::VecOps::RVec<int> result;
+    for (size_t i = 0; i < PDGmother.size(); ++i) {
+        int isKS = 0;
+        for (size_t j = 0; j < PDGmother[i].size(); ++j) {
+            if (std::abs(PDGmother[i][j]) == 310) {
+                isKS = 10; 
+                int charged_daughters = 0;
+                for (size_t k = 0; k < PDG[i].size(); ++k) {
+                    int pdg_id = std::abs(PDG[i][k]);
+                    // accept both pions and muons
+                    if (pdg_id == 211 || pdg_id == 13) {
+                        charged_daughters++;
+                    }
+                }
+                isKS += charged_daughters;
+                break; 
+            }
+        }
+        result.push_back(isKS);
+    }
+    return result;
+};
+
+
+//Function to get primary tracks.
+ROOT::VecOps::RVec<edm4hep::TrackState> getPrimaryTracks(
+        const ROOT::VecOps::RVec<edm4hep::TrackState>& tracks,
+        double chi2max = 25.,
+        double beamspotX = 0., double beamspotY = 0., double beamspotZ = 0.){
+
+        // convert beamspot position units from centimeter to 10 micrometer
+        // note: the FCCAnalyses function expect these values in micrometer,
+        //       corresponding to track parameters in mm;
+        //       but since our track parameters are in cm instead of mm,
+        //       we use beamspot units of 10 micrometers.
+        beamspotX = beamspotX * 1e3;
+        beamspotY = beamspotY * 1e3;
+        beamspotZ = beamspotZ * 1e3;
+
+        // define beamspot width
+        double sigma_beamspotX = 20; // unit: 10 micrometer
+        double sigma_beamspotY = 10; // unit: 10 micrometer
+        double sigma_beamspotZ = 2000; // unit: 10 micrometer
+        bool doBeamSpotConstraint = true;
+
+        // intitialize output
+        ROOT::VecOps::RVec<edm4hep::TrackState> primaryTracks;
+
+        // do filtering
+        // note: the input is assumed to have already passed the baseline selection;
+        //       here we just apply an extra cut on D0 and Z0 to focus on primary tracks
+        ROOT::VecOps::RVec<edm4hep::TrackState> tracksToUse;
+        for (const edm4hep::TrackState& trk : tracks) {
+            if (std::abs(trk.D0)>50 || std::abs(trk.Z0)>50) continue;
+            tracksToUse.push_back(trk);
+        }
+        if( tracksToUse.size() < 2 ){ return primaryTracks; }
+
+        // call primary track finder from FCCAnalyses
+        primaryTracks = FCCAnalyses::VertexFitterSimple::get_PrimaryTracks(
+            tracksToUse,
+            doBeamSpotConstraint,
+            sigma_beamspotX, sigma_beamspotY, sigma_beamspotZ,
+            beamspotX, beamspotY, beamspotZ
+        );
+        return primaryTracks;
+};
+
+// helper function to find tracks passing some baseline selection
+// note: this function uses both the track states and the track objects (the latter for chi2);
+//       it is assumed that both collections are corresponding trivially, i.e. one-to-one by same index.
+ROOT::VecOps::RVec<edm4hep::TrackState> getSelectedTracks(
+        const ROOT::VecOps::RVec<edm4hep::TrackState>& tracks,
+        const ROOT::VecOps::RVec<edm4hep::TrackData>& trackDatas,
+        const float D0max, const float Z0max){
+
+        // safety check
+        if( tracks.size() != trackDatas.size() ){
+            throw std::runtime_error("Vector sizes do not match (in getSelectedTracks plain).");
+        }
+
+        // do filtering
+        ROOT::VecOps::RVec<edm4hep::TrackState> selectedTracks;
+        for (int idx = 0; idx < tracks.size(); idx++) {
+            const edm4hep::TrackState trk = tracks.at(idx);
+            const edm4hep::TrackData trkobj = trackDatas.at(idx);
+            const auto& c = trk.covMatrix;
+            if (c[0] <= 0 || c[2] <= 0 || c[9] <= 0) continue;
+            if (c[0] < 1e-12 || c[2] < 1e-12 || c[9] <= 1e-12) continue;
+            if (!std::isfinite(c[0]) || !std::isfinite(c[2]) || !std::isfinite(c[9])) continue;
+            if (D0max > 0 && std::abs(trk.D0)>D0max) continue;
+            if (Z0max > 0 && std::abs(trk.Z0)>Z0max) continue;
+            if (trkobj.ndf==0) continue;
+            if (trkobj.chi2 / trkobj.ndf > 10.) continue;
+            selectedTracks.push_back(trk);
+        }
+        return selectedTracks;
+};
+
+FCCAnalyses::VertexingUtils::FCCAnalysesVertex fitRecoPrimaryVertex(
+        const ROOT::VecOps::RVec<edm4hep::TrackState>& tracks,
+        double beamspotX = 0, double beamspotY = 0, double beamspotZ = 0){
+
+        // convert beamspot position units from centimeter to 10 micrometer
+        // note: the FCCAnalyses function expect these values in micrometer,
+        //       corresponding to track parameters in mm;
+        //       but since our track parameters are in cm instead of mm,
+        //       we use beamspot units of 10 micrometers.
+        beamspotX = beamspotX * 1e3;
+        beamspotY = beamspotY * 1e3;
+        beamspotZ = beamspotZ * 1e3;
+
+        // define beamspot width
+        double sigma_beamspotX = 20; // unit: 10 micrometer
+        double sigma_beamspotY = 10; // unit: 10 micrometer
+        double sigma_beamspotZ = 2000; // unit: 10 micrometer
+        bool doBeamSpotConstraint = true;
+
+        // define dummy vertex in case the fit cannot be performed
+        edm4hep::VertexData dummyVertex;
+        dummyVertex.chi2 = -1;
+        //dummyVertex.ndf = 0;
+        dummyVertex.position = edm4hep::Vector3f(beamspotX, beamspotY, beamspotZ);
+        FCCAnalyses::VertexingUtils::FCCAnalysesVertex dummyVertexObject;
+        dummyVertexObject.vertex = dummyVertex;
+        dummyVertexObject.ntracks = 0;
+        dummyVertexObject.mc_ind = -1;
+        if( tracks.size() < 2 ){ return dummyVertexObject; }
+
+        // call primary vertex finder from FCCAnalyses
+        FCCAnalyses::VertexingUtils::FCCAnalysesVertex vertex;
+        vertex = FCCAnalyses::VertexFitterSimple::VertexFitter_Tk(
+            1, tracks, doBeamSpotConstraint,
+            sigma_beamspotX, sigma_beamspotY, sigma_beamspotZ,
+            beamspotX, beamspotY, beamspotZ
+        );
+        return vertex;
+};
+
+// helper function to find tracks not compatible with primary vertex.
+ROOT::VecOps::RVec<edm4hep::TrackState> getSecondaryTracks(
+        const ROOT::VecOps::RVec<edm4hep::TrackState>& tracks,
+        const ROOT::VecOps::RVec<edm4hep::TrackState>& primaryTracks){
+
+        // skip tracks compatible with primary vertex
+        ROOT::VecOps::RVec<edm4hep::TrackState> secondaryTracks;
+        secondaryTracks = FCCAnalyses::VertexFitterSimple::get_NonPrimaryTracks(tracks, primaryTracks);
+        return secondaryTracks;
+};
+
+
+
+struct MatchMCV0 {
+    std::vector<float> distance;
+    std::vector<int> mc_vtx_idx;
+};
+
+inline MatchMCV0 match_MC2Reco_V0s(
+    const ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex>& recoVertices,
+    const ROOT::VecOps::RVec<int>& rp2mc, // association indices that point to the mc particle collection
+    const ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertexMC>& mcvertices,
+    const ROOT::VecOps::RVec<float>& MC_Vertex_x, 
+    const ROOT::VecOps::RVec<float>& MC_Vertex_y,
+    const ROOT::VecOps::RVec<float>& MC_Vertex_z
+) {
+    MatchMCV0 result;
+
+    //loop over all reconstructed vertices
+    for (const auto& vtx : recoVertices) {
+        int matched_vtx_idx = -1;
+        float dist = -999.0;
+        
+        //initialise vector of associated MC particles for the vertex
+        std::vector<int> asso_vtx_mc_particles;
+        
+        //loop over reco particles that form the reco vertices
+        for (int rp_idx : vtx.reco_ind) {
+            //get the MC particle index associated to the reco particle
+            if (rp_idx >= 0 && rp_idx < rp2mc.size()) {
+                int mc_p_id = rp2mc.at(rp_idx);
+                if (mc_p_id >= 0) {
+                    asso_vtx_mc_particles.push_back(mc_p_id);
+                }
+            }
+        }
+        //once two associated MC particles are found, look for them in the MC vertex object
+        if (asso_vtx_mc_particles.size() >= 2) {
+            for (size_t i = 0; i < mcvertices.size(); ++i) {
+                int matches = 0;
+                const auto& mc_ind = mcvertices.at(i).mc_ind; //this gives the indices of mc particles associated to the MC vertex i
+                
+                for (int mc_p_id : asso_vtx_mc_particles) {
+                    if (std::find(mc_ind.begin(), mc_ind.end(), mc_p_id) != mc_ind.end()) {
+                        matches++;
+                    }
+                }
+
+                if (matches >= 2) {
+                    matched_vtx_idx = i;
+                    float dx = vtx.vertex.position.x - MC_Vertex_x[i];
+                    float dy = vtx.vertex.position.y - MC_Vertex_y[i];
+                    float dz = vtx.vertex.position.z - MC_Vertex_z[i];
+                    dist = std::sqrt(dx*dx + dy*dy + dz*dz);
+                    break;
+                }
+            }
+        }
+        result.mc_vtx_idx.push_back(matched_vtx_idx);
+        result.distance.push_back(dist);
+    }
+    return result;
+}
+
+std::vector<float> get_v0_dist(MatchMCV0 res) { return res.distance; }
+std::vector<int> get_v0_idx(MatchMCV0 res) { return res.mc_vtx_idx; }
+
+// function to calculate minimum distance between a Kaon trajectory (vertex + momentum) and another vertex
+// to check compability between the KS decay vertex and other vertices. 
+float get_distance_traj2vertex(edm4hep::Vector3f vPos, TVector3 pVec, edm4hep::Vector3f v2Pos) {
+    
+    // unitary vector alomg the Kaon momentum direction
+    float pMag = sqrt(pVec.X()*pVec.X() + pVec.Y()*pVec.Y() + pVec.Z()*pVec.Z());
+    if (pMag < 1e-6) return 999.0; // avoid errors if momentum is too small
+    
+    TVector3 u(pVec.X()/pMag, pVec.Y()/pMag, pVec.Z()/pMag);
+
+    // vector from the kaon vertex to the other vertex
+    TVector3 d(v2Pos.x - vPos.x, v2Pos.y - vPos.y, v2Pos.z - vPos.z);
+
+    // one can measure the distance of the kaon trajectory to the other vertex as the magnitude of the
+    // cross product between unitary vector and vector d.
+    TVector3 crossProd = d.Cross(u);
+    
+    return crossProd.Mag();
+}
+
+//function to get the minimum distance between all KS candidates and other vertices in the event, 
+// to check if there are other vertices compatible with the KS decay vertex.
+
+struct KSVertexCompatibility {
+    ROOT::VecOps::RVec<float> distances;
+    ROOT::VecOps::RVec<int> indices;
+    ROOT::VecOps::RVec<int> is_correct_origin;
+};
+
+KSVertexCompatibility get_ks2vertex_min_dist(
+    ROOT::VecOps::RVec<int> ks_mask,
+    ROOT::VecOps::RVec<float> px,
+    ROOT::VecOps::RVec<float> py, 
+    ROOT::VecOps::RVec<float> pz,
+    ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vtx,
+    ROOT::VecOps::RVec<int> mc_vtx_ind, // Vertex_mcind
+    ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertexMC> mc_vtx
+) {
+    ROOT::VecOps::RVec<float> min_distances;
+    ROOT::VecOps::RVec<int> best_vtx_idx;
+    ROOT::VecOps::RVec<int> is_correct_origin(vtx.size(), 0);
+
+    // first check if vertex is a KS candidate
+    for (size_t i = 0; i < vtx.size(); ++i) {
+        if (ks_mask[i] == 0) continue; 
+
+        // get the position and momentum of the KS candidate vertex
+        edm4hep::Vector3f vPos = vtx.at(i).vertex.position;
+        TVector3 pVec(px[i], py[i], pz[i]);
+
+        float min_d = 1e3;
+        int min_vtx_idx = -1;
+
+        // compare the ks candidate vertex with all other vertices in the event
+        for (size_t j = 0; j < vtx.size(); ++j) {
+            if (i == j) continue; // you don't compare the vertex with itself
+            
+            float d = get_distance_traj2vertex(vPos, pVec, vtx.at(j).vertex.position);
+            if (d < min_d) {
+                min_d = d;
+                min_vtx_idx = j;
+            }
+        }
+        
+        // store the minimum distance and the index of the closest vertex
+        if (min_vtx_idx != -1) {
+            min_distances.push_back(min_d);
+            best_vtx_idx.push_back(min_vtx_idx);
+            is_correct_origin.push_back(0);
+            
+            int mc_idx_ks = mc_vtx_ind[i];
+            int mc_idx_parent = mc_vtx_ind[min_vtx_idx]; // MC vertex of closest reco vertex
+
+            if (mc_idx_ks >= 0 && mc_idx_parent >= 0) {
+                // pdg of kaon's mother
+                auto mothers_ks = mc_vtx.at(mc_idx_ks).gmother_ind;
+                auto mothers_found = mc_vtx.at(mc_idx_parent).mother_ind; 
+                
+                for (const auto& mks : mothers_ks) {
+                    for (const auto& mf : mothers_found) {
+                        if (mks == mf) {
+                            is_correct_origin[i] = 1;
+                            break;
+                        }
+                    }
+                    if (is_correct_origin[i] == 1) break;
+                }
+            }
+        }
+    }
+
+    return {min_distances, best_vtx_idx, is_correct_origin};
+}
 
 }}
 
