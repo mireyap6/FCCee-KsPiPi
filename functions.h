@@ -4,6 +4,8 @@
 #include <cmath>
 #include <vector>
 #include <math.h>
+#include <unordered_map>
+#include <iostream>
 
 #include "TLorentzVector.h"
 #include "ROOT/RVec.hxx"
@@ -27,6 +29,23 @@ struct resonanceBuilder_mass_recoil {
     resonanceBuilder_mass_recoil(float arg_resonance_mass, float arg_recoil_mass, float arg_chi2_recoil_frac, float arg_ecm, bool arg_use_MC_Kinematics);
     Vec_rp operator()(Vec_rp legs, Vec_i recind, Vec_i mcind, Vec_rp reco, Vec_mc mc, Vec_i parents, Vec_i daugthers) ;
 };
+// Function prototypes
+bool check_constraints(VertexingUtils::FCCAnalysesVertex vtx, ROOT::VecOps::RVec<edm4hep::TrackState> tracks, VertexingUtils::FCCAnalysesVertex PV, bool seed, double chi2_cut, double invM_cut, double chi2Tr_cut);
+ROOT::VecOps::RVec<int> VertexSeed_best(ROOT::VecOps::RVec<edm4hep::TrackState> tracks, VertexingUtils::FCCAnalysesVertex PV, double chi2_cut, double invM_cut);
+ROOT::VecOps::RVec<int> addTrack_best(ROOT::VecOps::RVec<edm4hep::TrackState> tracks, ROOT::VecOps::RVec<int> vtx_tr, VertexingUtils::FCCAnalysesVertex PV, double chi2_cut, double invM_cut, double chi2Tr_cut);
+ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> findSVfromTracks(ROOT::VecOps::RVec<edm4hep::TrackState> tracks_fin, const ROOT::VecOps::RVec<edm4hep::TrackState>& alltracks, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> recoparticles, VertexingUtils::FCCAnalysesVertex PV, double chi2_cut, double invM_cut, double chi2Tr_cut);
+ROOT::VecOps::RVec<double> constraints_Ks(bool tight);
+ROOT::VecOps::RVec<double> constraints_Lambda0(bool tight);
+ROOT::VecOps::RVec<double> constraints_Gamma(bool tight);
+ROOT::VecOps::RVec<double> get_V0candidate(VertexingUtils::FCCAnalysesVertex &V0_vtx, ROOT::VecOps::RVec<edm4hep::TrackState> tr_pair,VertexingUtils::FCCAnalysesVertex PV,bool chi2,double chi2_cut);
+
+
+bool debug_me = false;
+// if particle masses defined in a dedicated file, call those rather than defining here
+const double m_pi = 0.13957039; // pi+- mass [GeV]
+const double m_p  = 0.93827208; // p+- mass [GeV]
+const double m_e  = 0.00051099; // e+- mass [GeV]
+const double m_mu = 0.10565837; // mu+- mass [GeV]
 
 resonanceBuilder_mass_recoil::resonanceBuilder_mass_recoil(float arg_resonance_mass, float arg_recoil_mass, float arg_chi2_recoil_frac, float arg_ecm, bool arg_use_MC_Kinematics) {m_resonance_mass = arg_resonance_mass, m_recoil_mass = arg_recoil_mass, chi2_recoil_frac = arg_chi2_recoil_frac, ecm = arg_ecm, m_use_MC_Kinematics = arg_use_MC_Kinematics;}
 
@@ -612,6 +631,52 @@ struct sel_indices {
   }
 };
 
+ROOT::VecOps::RVec<int> get_MC_Vertex_isKSpipi(
+    const std::vector<std::vector<int>>& PDGmother,
+    const std::vector<std::vector<int>>& PDG)
+{
+    ROOT::VecOps::RVec<int> result;
+
+    for (size_t i = 0; i < PDGmother.size(); ++i) {
+        int isKS = 0;
+        
+        for (size_t j = 0; j < PDGmother[i].size(); ++j) {
+            int mom_pdg = std::abs(PDGmother[i][j]);
+            
+            if (mom_pdg == 310) {
+                isKS = 10; 
+                int charged_daughters = 0;
+                
+                for (size_t k = 0; k < PDG[i].size(); ++k) {
+                    int pdg_id = std::abs(PDG[i][k]);
+                    
+                    if (pdg_id == 211 || pdg_id == 13) {
+                        charged_daughters++;
+                    }
+                }
+                isKS += charged_daughters;
+                break; 
+            }
+        }
+        result.push_back(isKS);
+    }
+    return result;
+}
+
+ROOT::VecOps::RVec<int> get_KS_decays(const ROOT::VecOps::RVec<edm4hep::MCParticleData>& particles) {
+    ROOT::VecOps::RVec<int> counts;
+    for (const auto& p : particles) {
+        if (std::abs(p.PDG) == 310) {
+            // 
+            int n_daughters = p.daughters_end - p.daughters_begin;
+            if (n_daughters == 2) {
+                counts.push_back(1);
+            }
+        }
+    }
+    return counts;
+}
+
 ROOT::VecOps::RVec<int> get_Vertex_isMCKSpipi(
     ROOT::VecOps::RVec<int> Vertex_mcind,
     const std::vector<std::vector<int>>& PDGmother,  // These are the names of the inputs
@@ -653,29 +718,36 @@ ROOT::VecOps::RVec<int> get_Vertex_isMCKSpipi(
     return result;
 };
 
-ROOT::VecOps::RVec<int> get_MC_Vertex_isKSpipi(
+ROOT::VecOps::RVec<int> get_MC_Vertex_isPimunu(
     const std::vector<std::vector<int>>& PDGmother, 
     const std::vector<std::vector<int>>& PDG)
 {
     ROOT::VecOps::RVec<int> result;
     for (size_t i = 0; i < PDGmother.size(); ++i) {
-        int isKS = 0;
+        bool hasPionMother = false;
+        bool hasMuon = false;
+        bool hasNu = false;
+
         for (size_t j = 0; j < PDGmother[i].size(); ++j) {
-            if (std::abs(PDGmother[i][j]) == 310) {
-                isKS = 10; 
-                int charged_daughters = 0;
-                for (size_t k = 0; k < PDG[i].size(); ++k) {
-                    int pdg_id = std::abs(PDG[i][k]);
-                    // accept both pions and muons
-                    if (pdg_id == 211 || pdg_id == 13) {
-                        charged_daughters++;
-                    }
-                }
-                isKS += charged_daughters;
-                break; 
+            if (std::abs(PDGmother[i][j]) == 211) {
+                hasPionMother = true;
+                break;
             }
         }
-        result.push_back(isKS);
+
+        if (hasPionMother) {
+            for (size_t k = 0; k < PDG[i].size(); ++k) {
+                int pdg_id = std::abs(PDG[i][k]);
+                if (pdg_id == 13) hasMuon = true;
+                if (pdg_id == 14) hasNu = true;
+            }
+        }
+
+        int code = 0;
+        if (hasPionMother) {
+            code = 10 + (hasMuon ? 1 : 0) + (hasNu ? 1 : 0);
+        }
+        result.push_back(code);
     }
     return result;
 };
@@ -789,7 +861,7 @@ FCCAnalyses::VertexingUtils::FCCAnalysesVertex fitRecoPrimaryVertex(
         // call primary vertex finder from FCCAnalyses
         FCCAnalyses::VertexingUtils::FCCAnalysesVertex vertex;
         vertex = FCCAnalyses::VertexFitterSimple::VertexFitter_Tk(
-            1, tracks, doBeamSpotConstraint,
+            1, tracks, tracks, doBeamSpotConstraint,
             sigma_beamspotX, sigma_beamspotY, sigma_beamspotZ,
             beamspotX, beamspotY, beamspotZ
         );
@@ -814,61 +886,109 @@ struct MatchMCV0 {
     std::vector<int> mc_vtx_idx;
 };
 
-inline MatchMCV0 match_MC2Reco_V0s(
+MatchMCV0 match_MC2Reco_V0s(
     const ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex>& recoVertices,
-    const ROOT::VecOps::RVec<int>& rp2mc, // association indices that point to the mc particle collection
+    const ROOT::VecOps::RVec<int>& rp2mc, // Association reco
+    const ROOT::VecOps::RVec<int>& mc2rp, // Association MC
     const ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertexMC>& mcvertices,
+    ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco_particles,
+    const ROOT::VecOps::RVec<edm4hep::MCParticleData>& mc_particles,
     const ROOT::VecOps::RVec<float>& MC_Vertex_x, 
     const ROOT::VecOps::RVec<float>& MC_Vertex_y,
     const ROOT::VecOps::RVec<float>& MC_Vertex_z
 ) {
     MatchMCV0 result;
 
-    //loop over all reconstructed vertices
+    // Iterate over each reco vertex
     for (const auto& vtx : recoVertices) {
         int matched_vtx_idx = -1;
         float dist = -999.0;
         
-        //initialise vector of associated MC particles for the vertex
+        // this will store the reco particles that form such reco vertex
         std::vector<int> asso_vtx_mc_particles;
         
-        //loop over reco particles that form the reco vertices
+        // 1. We look for the MC particle corresponding to the daugthers (rp_idx)
         for (int rp_idx : vtx.reco_ind) {
-            //get the MC particle index associated to the reco particle
-            if (rp_idx >= 0 && rp_idx < rp2mc.size()) {
-                int mc_p_id = rp2mc.at(rp_idx);
-                if (mc_p_id >= 0) {
-                    asso_vtx_mc_particles.push_back(mc_p_id);
-                }
-            }
-        }
-        //once two associated MC particles are found, look for them in the MC vertex object
-        if (asso_vtx_mc_particles.size() >= 2) {
-            for (size_t i = 0; i < mcvertices.size(); ++i) {
-                int matches = 0;
-                const auto& mc_ind = mcvertices.at(i).mc_ind; //this gives the indices of mc particles associated to the MC vertex i
-                
-                for (int mc_p_id : asso_vtx_mc_particles) {
-                    if (std::find(mc_ind.begin(), mc_ind.end(), mc_p_id) != mc_ind.end()) {
-                        matches++;
+            for (size_t j = 0; j < rp2mc.size(); ++j) {
+                if (rp2mc.at(j) == rp_idx) {
+                    int mc_p_id = mc2rp.at(j);
+                    if (mc_p_id >= 0 && mc_p_id < (int)mc_particles.size()) {
+                        asso_vtx_mc_particles.push_back(mc_p_id);
                     }
-                }
-
-                if (matches >= 2) {
-                    matched_vtx_idx = i;
-                    float dx = vtx.vertex.position.x - MC_Vertex_x[i];
-                    float dy = vtx.vertex.position.y - MC_Vertex_y[i];
-                    float dz = vtx.vertex.position.z - MC_Vertex_z[i];
-                    dist = std::sqrt(dx*dx + dy*dy + dz*dz);
                     break;
                 }
             }
         }
+
+        // 2. check if daughters MC come from the same position
+        if (asso_vtx_mc_particles.size() >= 2) {
+            bool valid_mc_origin = true;
+            float tolerance = 1e-2; // Tolerance of 10 mum 
+
+            // vertex coordinates of first daughter MC particle found
+            float first_mc_vtx_x = mc_particles.at(asso_vtx_mc_particles[0]).vertex.x;
+            float first_mc_vtx_y = mc_particles.at(asso_vtx_mc_particles[0]).vertex.y;
+            float first_mc_vtx_z = mc_particles.at(asso_vtx_mc_particles[0]).vertex.z;
+
+            // verify that the rest of the daughters of the vertex are coming from the same origin
+            for (size_t i = 1; i < asso_vtx_mc_particles.size(); ++i) {
+                const auto& p_mc = mc_particles.at(asso_vtx_mc_particles[i]);
+                if (std::abs(p_mc.vertex.x - first_mc_vtx_x) > tolerance ||
+                    std::abs(p_mc.vertex.y - first_mc_vtx_y) > tolerance ||
+                    std::abs(p_mc.vertex.z - first_mc_vtx_z) > tolerance) {
+                    valid_mc_origin = false;
+                    break;
+                }
+            }
+
+            // 3. Look for the corresponding MC vertex
+            if (valid_mc_origin) {
+                std::vector<int> matching_mc_vertices;
+                
+                for (size_t i = 0; i < mcvertices.size(); ++i) {
+                    const auto& mc_vtx_indices = mcvertices.at(i).mc_ind;
+                    
+                    // Check that the mc particles are in the mc vertex
+                    for (int mc_p_id : asso_vtx_mc_particles) {
+                        if (std::find(mc_vtx_indices.begin(), mc_vtx_indices.end(), mc_p_id) != mc_vtx_indices.end()) {
+                            matching_mc_vertices.push_back(i);
+                            break;
+                        }
+                    }
+                }
+
+                // calculate distance reco - mc vertex
+                if (!matching_mc_vertices.empty()) {
+                    matched_vtx_idx = matching_mc_vertices[0];
+                    
+                    float dx = vtx.vertex.position.x - MC_Vertex_x[matched_vtx_idx];
+                    float dy = vtx.vertex.position.y - MC_Vertex_y[matched_vtx_idx];
+                    float dz = vtx.vertex.position.z - MC_Vertex_z[matched_vtx_idx];
+                    dist = std::sqrt(dx*dx + dy*dy + dz*dz);
+                }
+            }
+        }
+
         result.mc_vtx_idx.push_back(matched_vtx_idx);
         result.distance.push_back(dist);
     }
+
     return result;
 }
+
+//funtion to get the pdg of the matching mc vertex
+inline ROOT::VecOps::RVec<int> get_matched_pdg(const ROOT::VecOps::RVec<int>& indices, const ROOT::VecOps::RVec<int>& pdgs) {
+        ROOT::VecOps::RVec<int> result;
+        for (int idx : indices) {
+            if (idx >= 0 && idx < pdgs.size()) {
+                result.push_back(pdgs[idx]);
+            } else {
+                result.push_back(0); // Default for no match
+            }
+        }
+        return result;
+    };
+
 
 std::vector<float> get_v0_dist(MatchMCV0 res) { return res.distance; }
 std::vector<int> get_v0_idx(MatchMCV0 res) { return res.mc_vtx_idx; }
@@ -966,6 +1086,624 @@ KSVertexCompatibility get_ks2vertex_min_dist(
 
     return {min_distances, best_vtx_idx, is_correct_origin};
 }
+
+
+//Defining a function to get the distance between close particles. I do this to check which pions and muons
+//are close to each other at the vertex level 
+struct CloseParticles {
+        ROOT::VecOps::RVec<float> d;
+        ROOT::VecOps::RVec<float> pix, piy, piz;
+        ROOT::VecOps::RVec<float> mux, muy, muz;
+    };
+
+// Function to get the ID of the grid cell for a given 3D point, to organise particles in a grid for fast searching of close pairs.
+    inline long long get_grid_ID(float x, float y, float z, float step) {
+        long long ix = std::floor(x / step);
+        long long iy = std::floor(y / step);
+        long long iz = std::floor(z / step);
+        return (ix + 10000) * 1000000 + (iy + 10000) * 1000 + (iz + 10000);
+    }
+
+inline CloseParticles get_close_pairs(
+        ROOT::VecOps::RVec<float> pix, ROOT::VecOps::RVec<float> piy, ROOT::VecOps::RVec<float> piz,
+        ROOT::VecOps::RVec<float> mux, ROOT::VecOps::RVec<float> muy, ROOT::VecOps::RVec<float> muz,
+        float threshold) 
+    {
+        CloseParticles res;
+        // 1. organise muons in a grid for fast searching
+        std::unordered_map<long long, std::vector<size_t>> grid;
+        for (size_t j = 0; j < mux.size(); ++j) {
+            grid[get_grid_ID(mux[j], muy[j], muz[j], threshold)].push_back(j);
+        }
+
+        // 2. iterate over pions and search for close muons in the grid
+        for (size_t i = 0; i < pix.size(); ++i) {
+            long long ix = std::floor(pix[i] / threshold);
+            long long iy = std::floor(piy[i] / threshold);
+            long long iz = std::floor(piz[i] / threshold);
+
+            for (int dx = -1; dx <= 1; ++dx) {
+                for (int dy = -1; dy <= 1; ++dy) {
+                    for (int dz = -1; dz <= 1; ++dz) {
+                        long long key = (ix + dx + 10000) * 1000000 + (iy + dy + 10000) * 1000 + (iz + dz + 10000);
+                        
+                        if (grid.count(key)) {
+                            for (size_t muon_idx : grid[key]) {
+                                float dist = std::sqrt(std::pow(pix[i]-mux[muon_idx],2) + 
+                                                       std::pow(piy[i]-muy[muon_idx],2) + 
+                                                       std::pow(piz[i]-muz[muon_idx],2));
+                                if (dist < threshold) {
+                                    res.d.push_back(dist);
+                                    res.pix.push_back(pix[i]); res.piy.push_back(piy[i]); res.piz.push_back(piz[i]);
+                                    res.mux.push_back(mux[muon_idx]); res.muy.push_back(muy[muon_idx]); res.muz.push_back(muz[muon_idx]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return res;
+    }
+
+
+
+
+
+
+//I will add here all necessary functions for the generic V0 reconstruction.
+bool check_constraints(VertexingUtils::FCCAnalysesVertex vtx,
+		       ROOT::VecOps::RVec<edm4hep::TrackState> tracks,
+		       VertexingUtils::FCCAnalysesVertex PV,
+		       bool seed,
+		       double chi2_cut, double invM_cut, double chi2Tr_cut) {
+  // if all constraints pass -> true
+  // if any constraint fails -> false
+
+  bool result = true;
+
+  int nTr = tracks.size();  // no of tracks
+  
+  // Constraints
+  // chi2 < cut (9)
+  double chi2 = vtx.vertex.chi2; // normalised
+  double nDOF = 2*nTr - 3;       // nDOF
+  chi2 = chi2 * nDOF;
+  if(chi2 >= chi2_cut) result = false;
+  //
+  // invM < cut (10GeV)
+  double invM = VertexingUtils::get_invM(vtx);
+  if(invM >= invM_cut) result = false;
+  //
+  // invM < sum of energy
+  double E_tracks = 0.;
+  for(edm4hep::TrackState tr_e : tracks) E_tracks += VertexingUtils::get_trackE(tr_e);
+  if(invM >= E_tracks) result = false;
+  //
+  // momenta sum & vtx r on same side
+  double angle = VertexingUtils::get_PV2vtx_angle(tracks, vtx, PV);
+  if(angle<0) result = false;
+  //
+  if(!seed) {
+    // chi2_contribution(track) < threshold
+    ROOT::VecOps::RVec<float> chi2_tr = vtx.reco_chi2;
+    if(chi2_tr[nTr-1] >= chi2Tr_cut) result = false;    // threshold = 5 ok?
+  }
+  //
+  return result;
+};
+
+
+ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> findSVfromTracks(ROOT::VecOps::RVec<edm4hep::TrackState> tracks_fin,
+                                                                       const ROOT::VecOps::RVec<edm4hep::TrackState>&  alltracks,
+								       ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> recoparticles,
+								       VertexingUtils::FCCAnalysesVertex PV,
+								       double chi2_cut, double invM_cut, double chi2Tr_cut) {
+
+  // find SVs (only if there are 2 or more tracks)
+  ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> result;
+
+  while(tracks_fin.size() > 1) {
+    // find vertex seed
+    ROOT::VecOps::RVec<int> vtx_seed = VertexSeed_best(tracks_fin, PV, chi2_cut, invM_cut);
+    
+    if(debug_me){
+      std::cout << "tracks_fin.size(): " << tracks_fin.size() << std::endl;
+      for(int i=0; i<vtx_seed.size();i++)
+	std::cout << "vtx_seed: " << vtx_seed[i] << std::endl;
+    }
+    if(vtx_seed.size() == 0) break;
+    
+    // add tracks to the seed, check if a track is added; if not break loop
+    ROOT::VecOps::RVec<int> vtx_fin = vtx_seed;
+    int vtx_fin_size = 0; // to start the loop
+    while(vtx_fin_size != vtx_fin.size()) {
+      vtx_fin_size = vtx_fin.size();
+      vtx_fin = addTrack_best(tracks_fin, vtx_fin, PV, chi2_cut, invM_cut, chi2Tr_cut);
+    }
+    
+    // fit tracks to SV and remove from tracks_fin
+    ROOT::VecOps::RVec<edm4hep::TrackState> tr_vtx_fin;
+    for(int i_tr : vtx_fin){
+      tr_vtx_fin.push_back(tracks_fin[i_tr]);
+      if(debug_me) std::cout << "Pushing back tracks_fin[i_tr]" << std::endl;
+    }
+    VertexingUtils::FCCAnalysesVertex sec_vtx = VertexFitterSimple::VertexFitter_Tk(2, tr_vtx_fin); // flag 2 for SVs
+
+    for (int i = 0; i < recoparticles.size(); i++) {
+        auto &p = recoparticles[i];
+        if (p.tracks_begin >= 0 && p.tracks_begin < alltracks.size()) {
+            
+            edm4hep::TrackState track_from_reco = alltracks[p.tracks_begin];
+            
+            for (auto &track_in_vertex : tr_vtx_fin) {
+                if (VertexingUtils::compare_Tracks(track_from_reco, track_in_vertex)) {
+                    sec_vtx.reco_ind.push_back(i);
+                    break;
+                }
+            }
+        }
+    }
+
+    result.push_back(sec_vtx);
+    //
+    ROOT::VecOps::RVec<edm4hep::TrackState> temp = tracks_fin;
+    tracks_fin.clear();
+    for(unsigned int t=0; t<temp.size(); t++) {
+      if(std::find(vtx_fin.begin(), vtx_fin.end(), t) == vtx_fin.end()) tracks_fin.push_back(temp[t]);
+    }    // all this cause don't know how to remove multiple elements at once
+
+    if(debug_me) std::cout<<result.size()<<" SV found"<<std::endl;
+  }
+
+  //
+  return result;
+}
+
+ROOT::VecOps::RVec<bool> IsPrimary_forTracks(ROOT::VecOps::RVec<edm4hep::TrackState> allTracks,
+                    ROOT::VecOps::RVec<edm4hep::TrackState> primaryTracks) {
+
+  ROOT::VecOps::RVec<bool> result;
+  for (auto &track : allTracks) {
+    bool isInPrimary = false;
+    for (auto &primary : primaryTracks) {
+      if (VertexingUtils::compare_Tracks(track, primary)) {
+        isInPrimary = true;
+        break;
+      }
+    }
+    result.push_back(isInPrimary);
+  }
+  return result;
+}
+
+ROOT::VecOps::RVec<int> VertexSeed_best(ROOT::VecOps::RVec<edm4hep::TrackState> tracks,
+					VertexingUtils::FCCAnalysesVertex PV,
+					double chi2_cut, double invM_cut) {
+
+  // gives indices of the best pair of tracks
+
+  ROOT::VecOps::RVec<int> result;
+  int isel = 0;
+  int jsel = 1;
+  
+  int nTr = tracks.size();
+  // push empty tracks to make a size=2 vector
+  ROOT::VecOps::RVec<edm4hep::TrackState> tr_pair;
+  edm4hep::TrackState tr_i, tr_j;
+  tr_pair.push_back(tr_i);
+  tr_pair.push_back(tr_j);
+  VertexingUtils::FCCAnalysesVertex vtx_seed;
+  double chi2_min = 99;
+  
+  for(unsigned int i=0; i<nTr-1; i++) {
+    tr_pair[0] = tracks[i];
+    
+    for(unsigned int j=i+1; j<nTr; j++) {
+      tr_pair[1] = tracks[j];
+      
+      vtx_seed = VertexFitterSimple::VertexFitter_Tk(2, tr_pair);
+      
+      // Constraints check
+      bool pass = check_constraints(vtx_seed, tr_pair, PV, true, chi2_cut, invM_cut, 30.0);
+      if(!pass) continue;
+      
+      // if a pair passes all constraints compare chi2, store lowest chi2
+      double chi2_seed = vtx_seed.vertex.chi2; // normalised but nDOF=1 for nTr=2      
+      if(chi2_seed < chi2_min) {
+	isel = i; jsel =j;
+	chi2_min = chi2_seed;
+      }
+    }
+  }
+
+  if(chi2_min != 99){
+    result.push_back(isel); 
+    result.push_back(jsel);
+  }
+  return result;
+}
+
+
+ROOT::VecOps::RVec<int> addTrack_best(ROOT::VecOps::RVec<edm4hep::TrackState> tracks,
+				      ROOT::VecOps::RVec<int> vtx_tr,
+				      VertexingUtils::FCCAnalysesVertex PV,
+				      double chi2_cut, double invM_cut, double chi2Tr_cut) {
+  // adds index of the best track to the (seed) vtx
+  
+  ROOT::VecOps::RVec<int> result = vtx_tr;
+  if(tracks.size() == vtx_tr.size()) return result;
+  
+  int isel = -1;
+
+  int nTr = tracks.size();
+  ROOT::VecOps::RVec<edm4hep::TrackState> tr_vtx;
+  VertexingUtils::FCCAnalysesVertex vtx;
+  double chi2_min = 99;
+
+  // add tracks of the previously formed vtx to a vector
+  for(int tr : vtx_tr) {
+    if(debug_me) std::cout << "Track integer: " << tr << std::endl;
+    if(debug_me) std::cout <<  "Track value: " << tracks[tr] << std::endl;
+    tr_vtx.push_back(tracks[tr]);
+  }
+  int iTr = tr_vtx.size();
+  // add an empty track to increase vector size by 1
+  edm4hep::TrackState tr_i;
+  tr_vtx.push_back(tr_i);
+
+  // find best track to add to the vtx
+  for(unsigned int i=0; i<nTr; i++) {
+    if(std::find(vtx_tr.begin(), vtx_tr.end(), i) != vtx_tr.end()) continue;
+    tr_vtx[iTr] = tracks[i];
+    
+    vtx = VertexFitterSimple::VertexFitter_Tk(2, tr_vtx);
+
+    // Constraints
+    bool pass = check_constraints(vtx, tr_vtx, PV, false, chi2_cut, invM_cut, chi2Tr_cut);
+    if(!pass) continue;
+    
+    // if a track passes all constraints compare chi2, store lowest chi2
+    double chi2_vtx = vtx.vertex.chi2; // normalised
+    double nDOF = 2*(iTr+1) - 3;       // nDOF = 2*nTr - 3
+    chi2_vtx = chi2_vtx * nDOF;
+    if(chi2_vtx < chi2_min) {
+      isel = i;
+      chi2_min = chi2_vtx;
+    }    
+  }
+
+  if(isel>=0) result.push_back(isel);
+  return result;
+};
+
+
+ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> get_SV_event(ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> recoparticles,
+								   ROOT::VecOps::RVec<edm4hep::TrackState> thetracks,
+								   VertexingUtils::FCCAnalysesVertex PV,
+								   ROOT::VecOps::RVec<bool> isInPrimary,
+								   bool V0_rej,
+								   double chi2_cut, double invM_cut, double chi2Tr_cut) {
+    
+  // find SVs using LCFI+ (w/o clustering)
+
+  ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> result;
+
+  // retrieve the tracks associated to the recoparticles
+  ROOT::VecOps::RVec<edm4hep::TrackState> tracks = ReconstructedParticle2Track::getRP2TRK( recoparticles, thetracks );
+
+  if(debug_me) std::cout<<"tracks extracted from the reco particles"<<std::endl;
+
+  if(tracks.size() != isInPrimary.size()) std::cout<<"ISSUE: track vector and primary-nonprimary vector of diff sizes"<<std::endl;
+
+  // remove primary tracks
+  ROOT::VecOps::RVec<edm4hep::TrackState> np_tracks;
+  for(unsigned int i=0; i<tracks.size(); i++) {
+    if (!isInPrimary[i]) np_tracks.push_back(tracks[i]);
+  }
+
+  if(debug_me) std::cout<<"primary tracks removed; there are "<<np_tracks.size()<<" non-primary tracks in the event"<<std::endl;
+  
+  //if(debug_me) std::cout << "tracks_fin.size() = " << tracks_fin.size() << std::endl;
+
+  // start finding SVs (only if there are 2 or more tracks)
+  result = findSVfromTracks(np_tracks, thetracks, recoparticles, PV, chi2_cut, invM_cut, chi2Tr_cut);
+
+  //if(debug_me) std::cout<<"no more SVs can be reconstructed"<<std::endl;
+  
+  return result;
+}
+
+
+//add all functions to reconstruct V0s
+
+///////////////////////////
+//** V0 Reconstruction **//
+///////////////////////////
+
+VertexingUtils::FCCAnalysesV0 get_V0s(ROOT::VecOps::RVec<edm4hep::TrackState> np_tracks,
+                                      const ROOT::VecOps::RVec<edm4hep::TrackState>& alltracks,
+                                      ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> recoparticles,
+                                      VertexingUtils::FCCAnalysesVertex PV,
+                                      bool tight,
+                                      double chi2_cut) {
+  // V0 reconstruction
+  // if(tight)  -> tight constraints
+  // if(!tight) -> loose constraints
+
+  VertexingUtils::FCCAnalysesV0 result;
+  ROOT::VecOps::RVec<VertexingUtils::FCCAnalysesVertex> vtx; // FCCAnalyses vertex object
+  ROOT::VecOps::RVec<int> pdgAbs;                            // absolute PDG ID
+  ROOT::VecOps::RVec<double> invM;                           // invariant mass
+  result.vtx = vtx;
+  result.pdgAbs = pdgAbs;
+  result.invM = invM;
+
+  VertexingUtils::FCCAnalysesVertex V0_vtx;
+  
+  int nTr = np_tracks.size();
+  if(nTr<2) return result;
+  ROOT::VecOps::RVec<bool> isInV0(nTr, false);
+
+  // set constraints (if(tight==true) tight_set)
+  ROOT::VecOps::RVec<double> isKs      = constraints_Ks(tight);
+  ROOT::VecOps::RVec<double> isLambda0 = constraints_Lambda0(tight);
+  ROOT::VecOps::RVec<double> isGamma   = constraints_Gamma(tight);
+
+  ROOT::VecOps::RVec<edm4hep::TrackState> tr_pair;
+  // push empty tracks to make a size=2 vector
+  edm4hep::TrackState tr_i, tr_j;
+  tr_pair.push_back(tr_i);
+  tr_pair.push_back(tr_j);
+  //
+  for(unsigned int i=0; i<nTr-1; i++) {
+    if(isInV0[i] == true) continue; // don't pair a track if it already forms a V0
+    tr_pair[0] = np_tracks[i];
+
+    for(unsigned int j=i+1; j<nTr; j++) {
+      if(isInV0[j] == true) continue; // don't pair a track if it already forms a V0
+      if(tr_pair[0].omega * np_tracks[j].omega > 0) continue; // don't pair tracks with same charge (same sign curvature = same sign charge)
+      tr_pair[1] = np_tracks[j];
+
+      ROOT::VecOps::RVec<double> V0_cand = get_V0candidate(V0_vtx, tr_pair, PV, true, chi2_cut);
+      if(V0_cand[0] == -1) continue;
+      
+      // Ks
+      if(V0_cand[0]>isKs[0] && V0_cand[0]<isKs[1] && V0_cand[5]>isKs[2] && V0_cand[6]>isKs[3]) {
+if(debug_me) std::cout<<"Found a Ks"<<std::endl;
+        isInV0[i] = true;
+        isInV0[j] = true;
+
+        V0_vtx.reco_ind.clear(); 
+        for (int k = 0; k < recoparticles.size(); k++) {
+            auto &p = recoparticles[k];
+            if (p.tracks_begin >= 0 && p.tracks_begin < alltracks.size()) {
+                edm4hep::TrackState track_from_reco = alltracks[p.tracks_begin];
+                
+                for (auto &track_in_vertex : tr_pair) {
+                    if (VertexingUtils::compare_Tracks(track_from_reco, track_in_vertex)) {
+                        V0_vtx.reco_ind.push_back(k);
+                        break;
+                    }
+                }
+            }
+        }
+
+        vtx.push_back(V0_vtx);
+        pdgAbs.push_back(310);
+        invM.push_back(V0_cand[0]);
+        break;
+      }
+      
+      // Lambda0
+      else if(V0_cand[1]>isLambda0[0] && V0_cand[1]<isLambda0[1] && V0_cand[5]>isLambda0[2] && V0_cand[6]>isLambda0[3]) {
+if(debug_me) std::cout<<"Found a Lambda0"<<std::endl;
+        isInV0[i] = true;
+        isInV0[j] = true;
+
+        V0_vtx.reco_ind.clear();
+        for (int k = 0; k < recoparticles.size(); k++) {
+            auto &p = recoparticles[k];
+            if (p.tracks_begin >= 0 && p.tracks_begin < alltracks.size()) {
+                edm4hep::TrackState track_from_reco = alltracks[p.tracks_begin];
+                for (auto &track_in_vertex : tr_pair) {
+                    if (VertexingUtils::compare_Tracks(track_from_reco, track_in_vertex)) {
+                        V0_vtx.reco_ind.push_back(k);
+                        break;
+                    }
+                }
+            }
+        }
+
+        vtx.push_back(V0_vtx);
+        pdgAbs.push_back(3122);
+        invM.push_back(V0_cand[2]);
+        break;
+      }
+
+      else if(V0_cand[2]>isLambda0[0] && V0_cand[2]<isLambda0[1] && V0_cand[5]>isLambda0[2] && V0_cand[6]>isLambda0[3]) {
+if(debug_me) std::cout<<"Found a Lambda0"<<std::endl;
+        isInV0[i] = true;
+        isInV0[j] = true;
+
+        V0_vtx.reco_ind.clear(); 
+        for (int k = 0; k < recoparticles.size(); k++) {
+            auto &p = recoparticles[k];
+            if (p.tracks_begin >= 0 && p.tracks_begin < alltracks.size()) {
+                edm4hep::TrackState track_from_reco = alltracks[p.tracks_begin];
+                for (auto &track_in_vertex : tr_pair) {
+                    if (VertexingUtils::compare_Tracks(track_from_reco, track_in_vertex)) {
+                        V0_vtx.reco_ind.push_back(k);
+                        break;
+                    }
+                }
+            }
+        }
+
+        vtx.push_back(V0_vtx);
+        pdgAbs.push_back(3122);
+        invM.push_back(V0_cand[1]);
+        break;
+      }
+	
+      // photon conversion
+      else if(V0_cand[3]<isGamma[1] && V0_cand[5]>isGamma[2] && V0_cand[6]>isGamma[3]) {
+if(debug_me) std::cout<<"Found a Photon coversion"<<std::endl;
+        isInV0[i] = true;
+        isInV0[j] = true;
+
+        V0_vtx.reco_ind.clear();
+        for (int k = 0; k < recoparticles.size(); k++) {
+            auto &p = recoparticles[k];
+            if (p.tracks_begin >= 0 && p.tracks_begin < alltracks.size()) {
+                edm4hep::TrackState track_from_reco = alltracks[p.tracks_begin];
+                for (auto &track_in_vertex : tr_pair) {
+                    if (VertexingUtils::compare_Tracks(track_from_reco, track_in_vertex)) {
+                        V0_vtx.reco_ind.push_back(k);
+                        break;
+                    }
+                }
+            }
+        }
+
+        vtx.push_back(V0_vtx);
+        pdgAbs.push_back(22);
+        invM.push_back(V0_cand[3]);
+        break;
+      }
+      //dimuon 
+        // dimuon
+      else if(V0_cand[4]>isKs[0] && V0_cand[4]<isKs[1] && V0_cand[5]>isKs[2] && V0_cand[6]>isKs[3]) {
+        if (debug_me) std::cout<<"Found a dimuon"<<std::endl;
+        isInV0[i] = true;
+        isInV0[j] = true;
+        vtx.push_back(V0_vtx);
+        pdgAbs.push_back(1313);
+        invM.push_back(V0_cand[4]);
+        break;
+            }
+
+    }
+  }
+
+  result.vtx = vtx;
+  result.pdgAbs = pdgAbs;
+  result.invM = invM;
+  //
+  return result;
+}
+
+
+
+ROOT::VecOps::RVec<double> get_V0candidate(VertexingUtils::FCCAnalysesVertex &V0_vtx,
+					   ROOT::VecOps::RVec<edm4hep::TrackState> tr_pair,
+					   VertexingUtils::FCCAnalysesVertex PV,
+					   bool chi2,
+					   double chi2_cut)
+{
+  // get invariant mass, distance from PV, and colliniarity variables for all V0 candidates
+  
+  // [0] -> invM_Ks [GeV]
+  // [1] -> invM_Lambda1 [GeV]
+  // [2] -> invM_Lambda2 [GeV]
+  // [3] -> invM_Gamma [GeV]
+  // [4] -> r (distance from PV) [mm]
+  // [5] -> r.p (colinearity) [r & p - unit vectors]
+  // skip the candidate with output entries = -1
+  
+  ROOT::VecOps::RVec<double> result(7, -1);
+
+  edm4hep::Vector3f r_PV = PV.vertex.position; // in mm
+  
+  V0_vtx = VertexFitterSimple::VertexFitter_Tk(2, tr_pair);
+
+  if(chi2) {
+    // constraint on chi2: chi2 < cut (9)
+    double chi2_V0 = V0_vtx.vertex.chi2; // normalised but nDOF=1
+    if(chi2_V0 >= chi2_cut) return result;
+  }
+  
+  // invariant masses for V0 candidates
+  result[0] = VertexingUtils::get_invM_pairs(V0_vtx, m_pi, m_pi);
+  result[1] = VertexingUtils::get_invM_pairs(V0_vtx, m_pi, m_p);
+  result[2] = VertexingUtils::get_invM_pairs(V0_vtx, m_p, m_pi);
+  result[3] = VertexingUtils::get_invM_pairs(V0_vtx, m_e, m_e);
+  result[4] = VertexingUtils::get_invM_pairs(V0_vtx, m_mu, m_mu);
+
+  // V0 candidate distance from PV
+  edm4hep::Vector3f r_V0 = V0_vtx.vertex.position; // in mm
+  TVector3 r_V0_PV(r_V0[0] - r_PV[0], r_V0[1] - r_PV[1], r_V0[2] - r_PV[2]);
+  result[5] = r_V0_PV.Mag(); // in mm
+
+  // angle b/n V0 candidate momentum & PV-V0 displacement vector
+  result[6] = VertexingUtils::get_PV2V0angle(V0_vtx, PV);
+
+  return result;
+}
+
+ROOT::VecOps::RVec<double> constraints_Ks(bool tight) {
+
+  ROOT::VecOps::RVec<double> result(4, 0);
+
+  if(tight) {
+    result[0] = 0.493;
+    result[1] = 0.503;
+    result[2] = 0.5;
+    result[3] = 0.999;
+  }
+
+  else {
+    result[0] = 0.0;
+    result[1] = 10;
+    result[2] = 0.0;
+    result[3] = 0.999;
+  }
+  //
+  return result;
+}
+
+ROOT::VecOps::RVec<double> constraints_Lambda0(bool tight) {
+
+  ROOT::VecOps::RVec<double> result(4, 0);
+
+  if(tight) {
+    result[0] = 1.111;
+    result[1] = 1.121;
+    result[2] = 0.5;
+    result[3] = 0.99995;
+  }
+
+  else {
+    result[0] = 1.106;
+    result[1] = 1.126;
+    result[2] = 0.3;
+    result[3] = 0.999;
+  }
+  //
+  return result;
+}
+
+ROOT::VecOps::RVec<double> constraints_Gamma(bool tight) {
+
+  ROOT::VecOps::RVec<double> result(4, 0);
+
+  if(tight) {
+    result[1] = 0.005;
+    result[2] = 9;
+    result[3] = 0.99995;
+  }
+
+  else {
+    result[1] = 0.01;
+    result[2] = 9;
+    result[3] = 0.999;
+  }
+  //
+  return result;
+}
+
+
+
 
 }}
 
