@@ -244,19 +244,19 @@ class RDFanalysis():
                 # secondary vertices from reconstructed data.
                 ##############################################
 
-               .Define("Beamspot_x", "0.0")
-               .Define("Beamspot_y", "0.0")
-               .Define("Beamspot_z", "0.0")
-               .Define("sig_x", "0.00596")
-               .Define("sig_y", "0.0000238")
-               .Define("sig_z", "0.397")
+               .Define("Beamspot_x", "0.0")    # um
+               .Define("Beamspot_y", "0.0")    # um
+               .Define("Beamspot_z", "0.0")    # um
+               .Define("sig_x", "5.96")        # um
+               .Define("sig_y", "0.0238")      # um (23.8 nm)
+               .Define("sig_z", "397.")        # um
 
 
                #.Define("SelectedTracks", "FCCAnalyses::ZHfunctions::getSelectedTracks(TrackState, TrackData, 100, 100)") #this is done to select some tracks that are
                #close to the PV so that we get the primary tracks faster.
           #     .Define("PrimaryTracks", "FCCAnalyses::ZHfunctions::getPrimaryTracks(TrackState, 3., Beamspot_x, Beamspot_y, Beamspot_z)")
                .Define("PrimaryTracks", "FCCAnalyses::VertexFitterSimple::get_PrimaryTracks(TrackState, true, sig_x, sig_y, sig_z, Beamspot_x, Beamspot_y, Beamspot_z)")
-               .Define("PrimaryVertexObject", "FCCAnalyses::ZHfunctions::fitRecoPrimaryVertex(PrimaryTracks, Beamspot_x, Beamspot_y, Beamspot_z)")
+               .Define("PrimaryVertexObject", "FCCAnalyses::ZHfunctions::fitRecoPrimaryVertex(PrimaryTracks, Beamspot_x, Beamspot_y, Beamspot_z, sig_x, sig_y, sig_z)")
                .Define("PrimaryVertex", "FCCAnalyses::VertexingUtils::get_VertexData(PrimaryVertexObject)")
                .Define("SecondaryTracks", "FCCAnalyses::ZHfunctions::getSecondaryTracks(TrackState, PrimaryTracks)")
                .Define("EventV0s", "FCCAnalyses::ZHfunctions::get_V0s(SecondaryTracks, TrackState, ReconstructedParticles, PrimaryVertexObject, false, 10)")

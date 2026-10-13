@@ -1309,42 +1309,20 @@ ROOT::VecOps::RVec<edm4hep::TrackState> getSelectedTracks(
 
 FCCAnalyses::VertexingUtils::FCCAnalysesVertex fitRecoPrimaryVertex(
         const ROOT::VecOps::RVec<edm4hep::TrackState>& tracks,
-        double beamspotX = 0, double beamspotY = 0, double beamspotZ = 0){
+        double bsX = 0., double bsY = 0., double bsZ = 0.,            // beam-spot position, um
+        double sigX = 5.96, double sigY = 0.0238, double sigZ = 397.){ // beam-spot size, um (Z pole)
 
-        // convert beamspot position units from centimeter to 10 micrometer
-        // note: the FCCAnalyses function expect these values in micrometer,
-        //       corresponding to track parameters in mm;
-        //       but since our track parameters are in cm instead of mm,
-        //       we use beamspot units of 10 micrometers.
-        beamspotX = beamspotX * 1e3;
-        beamspotY = beamspotY * 1e3;
-        beamspotZ = beamspotZ * 1e3;
-
-        // define beamspot width
-        double sigma_beamspotX = 20; // unit: 10 micrometer
-        double sigma_beamspotY = 10; // unit: 10 micrometer
-        double sigma_beamspotZ = 2000; // unit: 10 micrometer
-        bool doBeamSpotConstraint = true;
-
-        // define dummy vertex in case the fit cannot be performed
         edm4hep::VertexData dummyVertex;
         dummyVertex.chi2 = -1;
-        //dummyVertex.ndf = 0;
-        dummyVertex.position = edm4hep::Vector3f(beamspotX, beamspotY, beamspotZ);
+        dummyVertex.position = edm4hep::Vector3f(bsX*1e-3, bsY*1e-3, bsZ*1e-3); // um -> mm
         FCCAnalyses::VertexingUtils::FCCAnalysesVertex dummyVertexObject;
         dummyVertexObject.vertex = dummyVertex;
         dummyVertexObject.ntracks = 0;
         dummyVertexObject.mc_ind = -1;
         if( tracks.size() < 2 ){ return dummyVertexObject; }
 
-        // call primary vertex finder from FCCAnalyses
-        FCCAnalyses::VertexingUtils::FCCAnalysesVertex vertex;
-        vertex = FCCAnalyses::VertexFitterSimple::VertexFitter_Tk(
-            1, tracks, tracks, doBeamSpotConstraint,
-            sigma_beamspotX, sigma_beamspotY, sigma_beamspotZ,
-            beamspotX, beamspotY, beamspotZ
-        );
-        return vertex;
+        return FCCAnalyses::VertexFitterSimple::VertexFitter_Tk(
+            1, tracks, tracks, true, sigX, sigY, sigZ, bsX, bsY, bsZ);
 };
 
 // helper function to find tracks not compatible with primary vertex.
